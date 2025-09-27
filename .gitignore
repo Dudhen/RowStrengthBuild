@@ -1,0 +1,7 @@
+__pycache__/
+build/
+logs/
+dist/
+iOS/build/
+*.pyc
+.DS_Store

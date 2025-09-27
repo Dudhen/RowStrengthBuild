@@ -1,0 +1,11 @@
+Metadata-Version: 2.1
+Briefcase-Version: 0.3.25
+Name: rowstrength
+Formal-Name: RowStrength
+App-ID: com.yourcompany.rowstrength
+Version: 1.0.0
+Home-page: https://example.com
+Download-URL: https://example.com
+Author: You
+Author-email: dev@example.com
+Summary: Эргометр ↔ штанга: пересчёты времени/1ПМ с учётом веса.

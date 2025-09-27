@@ -1,0 +1,36 @@
+[tool.briefcase]
+project_name = "RowStrength by Dudhen"
+bundle = "com.rowstrength"
+version = "1.0.0"
+license = "Proprietary"
+author = "Arseny Dudchenko"
+
+[tool.briefcase.app.rowstrength]
+formal_name = "RowStrength"
+description = "Эргометр ↔ штанга: пересчёты времени/1ПМ с учётом веса."
+icon = "icons"
+sources = ["rowstrength"]
+# requires = ["toga-ios>=0.4.4"]
+
+# macOS (десктоп)
+[tool.briefcase.app.rowstrength.macOS]
+supported = true
+requires = ["toga-cocoa>=0.4.4"]
+
+# Windows (десктоп)
+[tool.briefcase.app.rowstrength.windows]
+supported = true
+requires = ["toga-winforms>=0.4.4"]
+
+# iOS (стор/симулятор)
+[tool.briefcase.app.rowstrength.iOS]
+supported = true
+requires = ["toga-ios>=0.4.4"]
+ios_deployment_target = "14.0"
+
+# Ресурсы приложения (JSON + Privacy Manifest)
+resources = [
+  "rowstrength/data/data_for_rowing_app.json",
+  "rowstrength/data/data_for_strength_app.json",
+  "ios/PrivacyInfo.xcprivacy"
+]

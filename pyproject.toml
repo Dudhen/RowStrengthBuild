@@ -8,7 +8,7 @@ author = "Arseny Dudchenko"
 [tool.briefcase.app.rowstrength]
 formal_name = "RowStrength"
 description = "Эргометр ↔ штанга: пересчёты времени/1ПМ с учётом веса."
-icon = "icons"
+icon = "icons/app-icon"
 sources = ["rowstrength"]
 # requires = ["toga-ios>=0.4.4"]
 

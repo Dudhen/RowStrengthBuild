@@ -30,7 +30,8 @@ requires = ["toga-winforms>=0.4.4"]
 supported = true
 requires = [
   "toga-ios>=0.4.4",
-  "std-nslog>=1.0.0"
+  "std-nslog>=1.0.0",
+  "rubicon-objc>=0.4.7,<0.5"
 ]
 ios_deployment_target = "14.0"
 

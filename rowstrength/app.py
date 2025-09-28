@@ -18,21 +18,45 @@ REPS_TABLE = {
 }
 WINDOW_SIZE = (1000, 750)
 
-# ---------- Стили (лениво, чтобы не падать на iOS при импорте) ----------
+# ---------- Стили (лениво) ----------
 IS_IOS = (sys.platform == "ios")
 F_HEAD = 22 if IS_IOS else 18
 F_LABEL = 16 if IS_IOS else 14
 F_INPUT = 16 if IS_IOS else 14
 PAD_MAIN = 18 if IS_IOS else 14
 
-def S_MAIN():        return Pack(direction=COLUMN, padding=PAD_MAIN, flex=1)
-def S_ROW():         return Pack(direction=ROW, margin_bottom=6)
-def S_HEAD():        return Pack(font_size=F_HEAD, margin_bottom=6)
-def S_LABEL():       return Pack(font_size=F_LABEL, margin_right=8)
-def S_INPUT():       return Pack(font_size=F_INPUT, margin_right=10)
-def S_BTN():         return Pack(margin_top=6, margin_bottom=6)
-def S_OUT():         return Pack(height=140, font_size=F_INPUT, margin_top=4)
-def S_SECTION():     return Pack(direction=COLUMN)
+
+def S_MAIN():
+    return Pack(direction=COLUMN, padding=PAD_MAIN, flex=1)
+
+
+def S_ROW():
+    return Pack(direction=ROW, padding_bottom=6)
+
+
+def S_HEAD():
+    return Pack(font_size=F_HEAD, padding_bottom=6)
+
+
+def S_LABEL():
+    return Pack(font_size=F_LABEL, padding_right=8)
+
+
+def S_INPUT():
+    return Pack(font_size=F_INPUT, padding_right=10)
+
+
+def S_BTN():
+    return Pack(padding_top=6, padding_bottom=6)
+
+
+def S_OUT():
+    return Pack(height=140, font_size=F_INPUT, padding_top=4)
+
+
+def S_SECTION():
+    return Pack(direction=COLUMN)
+
 
 # ---------- Локализация ----------
 LANGS = ["en", "de", "fr", "es", "ru"]
@@ -137,6 +161,7 @@ EX_KEY_TO_LABEL = {lang: {v: k for k, v in EX_UI_TO_KEY[lang].items()} for lang 
 GENDER_LABELS = {lang: [T["female"][lang], T["male"][lang]] for lang in LANGS}
 GENDER_MAP = {lang: {GENDER_LABELS[lang][0]: "female", GENDER_LABELS[lang][1]: "male"} for lang in LANGS}
 
+
 # ---------- Утилиты ----------
 def get_split_500m(distance: str, time: str) -> str:
     m = re.search(r'\d+', distance)
@@ -192,6 +217,7 @@ def _parse_time_range_from_data(distance_data):
 def _two(n: int) -> str:
     return f"{n:02d}"
 
+
 # ---------- Приложение ----------
 class RowStrengthApp(toga.App):
     def __init__(self, *args, **kwargs):
@@ -214,12 +240,16 @@ class RowStrengthApp(toga.App):
             T["splash"][self.lang],
             style=Pack(font_size=18, text_align="center", color="#6A5ACD")
         )
-        # Центрирование без Spacer: пустые Box сверху/снизу с flex=1
+        # Жёстко и кроссплатформенно по центру:
+        # колонка с верх/низ гибкими блоками и серединой-строкой с левым/правым гибкими блоками
         top_pad = toga.Box(style=Pack(flex=1))
-        mid = toga.Box(children=[splash_label], style=Pack(alignment="center"))
+        mid_row = toga.Box(style=Pack(direction=ROW))
+        mid_row.add(toga.Box(style=Pack(flex=1)))
+        mid_row.add(splash_label)
+        mid_row.add(toga.Box(style=Pack(flex=1)))
         bottom_pad = toga.Box(style=Pack(flex=1))
 
-        splash_box = toga.Box(children=[top_pad, mid, bottom_pad],
+        splash_box = toga.Box(children=[top_pad, mid_row, bottom_pad],
                               style=Pack(direction=COLUMN, flex=1, padding=40))
 
         root = toga.Box(children=[splash_box], style=Pack(direction=COLUMN, flex=1))
@@ -316,7 +346,8 @@ class RowStrengthApp(toga.App):
 
         row_distance = toga.Box(children=[self.distance_caption, self.distance], style=S_ROW())
         row_time = toga.Box(
-            children=[self.minutes_caption, self.time_min, self.seconds_caption, self.time_sec, self.centis_caption, self.time_ms],
+            children=[self.minutes_caption, self.time_min, self.seconds_caption, self.time_sec, self.centis_caption,
+                      self.time_ms],
             style=S_ROW()
         )
 
@@ -324,7 +355,7 @@ class RowStrengthApp(toga.App):
         self.calc_button_erg = toga.Button("", on_press=self.calculate_erg, style=S_BTN())
         self.mode1_results_box = toga.Box(
             children=[self.res1_title, self.res1_output, self.res1_strength_title, self.res1_output_strength],
-            style=Pack(direction=COLUMN, margin_top=4)
+            style=Pack(direction=COLUMN, padding_top=4)
         )
         self.erg_container = toga.Box(
             children=[self.mode1_inputs, self.calc_button_erg, self.mode1_results_box],
@@ -350,7 +381,7 @@ class RowStrengthApp(toga.App):
         self.mode2_inputs = toga.Box(children=[row_ex, row_w, row_r], style=S_SECTION())
         self.calc_button_bar = toga.Button("", on_press=self.calculate_bar, style=S_BTN())
         self.mode2_results_box = toga.Box(children=[self.res2_title, self.res2_output],
-                                          style=Pack(direction=COLUMN, margin_top=4))
+                                          style=Pack(direction=COLUMN, padding_top=4))
         self.bar_container = toga.Box(
             children=[self.mode2_inputs, self.calc_button_bar, self.mode2_results_box],
             style=Pack(direction=COLUMN)
@@ -364,8 +395,8 @@ class RowStrengthApp(toga.App):
         self.tabs_holder = toga.Box(style=Pack(direction=COLUMN, flex=1))
         self._build_tabs()
 
-        # Верхняя часть без внешнего ScrollContainer
-        head_row = toga.Box(children=[self.title_label], style=Pack(direction=ROW, margin_bottom=8))
+        # Верхняя часть
+        head_row = toga.Box(children=[self.title_label], style=Pack(direction=ROW, padding_bottom=8))
         lang_row = toga.Box(children=[self.lang_caption, self.lang_sel], style=S_ROW())
         common_row = toga.Box(children=[self.gender_caption, self.gender,
                                         self.weight_caption, self.weight], style=S_ROW())
@@ -527,7 +558,6 @@ class RowStrengthApp(toga.App):
             t_norm = f"{self.time_min.value}:{self.time_sec.value}"
             distance_data_time = distance_data.get(t_norm) or distance_data.get(t_norm.lstrip("0"))
             if not distance_data_time:
-                # показываем корректные границы времени
                 (min_mm, min_ss), (max_mm, max_ss) = _parse_time_range_from_data(distance_data)
                 a = f"{min_mm:02d}:{min_ss:02d}"
                 b = f"{max_mm:02d}:{max_ss:02d}"

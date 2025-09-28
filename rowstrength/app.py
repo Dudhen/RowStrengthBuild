@@ -16,7 +16,7 @@ REPS_TABLE = {
     20: 60, 21: 59, 22: 58, 23: 57, 24: 56, 25: 55, 26: 54, 27: 53, 28: 52,
     29: 51, 30: 50
 }
-WINDOW_SIZE = (1000, 600)
+WINDOW_SIZE = (1000, 750)
 
 # ---------- Стили ----------
 IS_IOS = (sys.platform == "ios")
@@ -113,7 +113,8 @@ T = {
     },
     "res_1rm": {
         "en": "Estimated 1 rep max: {v} kg", "de": "Geschätztes 1 Wdh.-Max.: {v} kg",
-        "fr": "1 rep max estimé : {v} kg", "es": "1 rep máx. estimado: {v} kg", "ru": "Оценка разового максимума: {v} кг",
+        "fr": "1 rep max estimé : {v} kg", "es": "1 rep máx. estimado: {v} kg",
+        "ru": "Оценка разового максимума: {v} кг",
     },
     "res_2k": {
         "en": "2k ergometer equivalent: {v}", "de": "2-km-Ergo-Äquivalent: {v}",
@@ -135,8 +136,6 @@ EX_UI_TO_KEY = {
 EX_KEY_TO_LABEL = {lang: {v: k for k, v in EX_UI_TO_KEY[lang].items()} for lang in LANGS}
 GENDER_LABELS = {lang: [T["female"][lang], T["male"][lang]] for lang in LANGS}
 GENDER_MAP = {lang: {GENDER_LABELS[lang][0]: "female", GENDER_LABELS[lang][1]: "male"} for lang in LANGS}
-MODE_LABELS = {lang: [T["mode_erg"][lang], T["mode_bar"][lang]] for lang in LANGS}
-MODE_LABEL_TO_KEY = {lang: {T["mode_erg"][lang]: "erg", T["mode_bar"][lang]: "bar"} for lang in LANGS}
 
 
 # ---------- Утилиты ----------
@@ -199,7 +198,7 @@ class RowStrengthApp(toga.App):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.lang = "en"
-        self._updating = False  # <-- флаг подавления on_change
+        self._updating = False
 
     # --------- Сплэш ----------
     def startup(self):
@@ -221,7 +220,7 @@ class RowStrengthApp(toga.App):
         self.main_window.content = splash_box
         self.main_window.show()
 
-        # Надежная задержка под WinForms
+        # Неблокирующая задержка, без add_background_task
         loop = asyncio.get_event_loop()
         loop.call_later(3, self._init_ui)
 
@@ -231,7 +230,7 @@ class RowStrengthApp(toga.App):
         self.rowing_data = load_json_from_package("data_for_rowing_app.json")
         self.strength_data_all = load_json_from_package("data_for_strength_app.json")
 
-        # виджеты, у которых меняем текст — держим ссылки
+        # заголовок и язык
         self.title_label = toga.Label("", style=S_HEAD)
         self.lang_caption = toga.Label("", style=S_LABEL)
         self.lang_sel = toga.Selection(
@@ -241,18 +240,14 @@ class RowStrengthApp(toga.App):
             style=S_INPUT
         )
 
-        # режим
-        self.mode_caption = toga.Label("", style=S_LABEL)
-        self.mode_widget = self._make_mode_widget()
-
-        # пол/вес
+        # общие поля (для обеих вкладок, сверху)
         self.gender_caption = toga.Label("", style=S_LABEL)
         self.gender = toga.Selection(items=GENDER_LABELS[self.lang], value=GENDER_LABELS[self.lang][1],
                                      on_change=self._on_gender_changed, style=S_INPUT)
         self.weight_caption = toga.Label("", style=S_LABEL)
         self.weight = toga.NumberInput(step=1, min=40, max=140, value=80, style=S_INPUT)
 
-        # Эргометр
+        # -------- Эргометр (вкладка 1) --------
         self.distance_caption = toga.Label("", style=S_LABEL)
         self.minutes_caption = toga.Label("", style=S_LABEL)
         self.seconds_caption = toga.Label("", style=S_LABEL)
@@ -276,13 +271,19 @@ class RowStrengthApp(toga.App):
             self.seconds_caption, self.time_sec,
             self.centis_caption, self.time_ms,
         ], style=S_ROW)
+        self.calc_button_erg = toga.Button("", on_press=self.calculate_erg, style=S_BTN)
         self.mode1_results_box = toga.Box(
             children=[self.res1_title, self.res1_output, self.res1_strength_title, self.res1_output_strength],
             style=Pack(direction=COLUMN, gap=10, margin_top=4)
         )
+        self.erg_container = toga.Box(
+            children=[self.mode1_box, self.calc_button_erg, self.mode1_results_box],
+            style=Pack(direction=COLUMN, gap=8)
+        )
 
-        # Штанга
+        # -------- Штанга (вкладка 2) --------
         self.exercise_caption = toga.Label("", style=S_LABEL)
+        # значения упражнений зависят от языка
         self.exercise = toga.Selection(items=list(EX_UI_TO_KEY[self.lang].keys()),
                                        value=list(EX_UI_TO_KEY[self.lang].keys())[0], style=S_INPUT)
         self.bar_weight_caption = toga.Label("", style=S_LABEL)
@@ -298,36 +299,67 @@ class RowStrengthApp(toga.App):
             self.bar_weight_caption, self.bar_weight,
             self.reps_caption, self.reps
         ], style=S_ROW)
+        self.calc_button_bar = toga.Button("", on_press=self.calculate_bar, style=S_BTN)
         self.mode2_results_box = toga.Box(children=[self.res2_title, self.res2_output],
                                           style=Pack(direction=COLUMN, gap=10, margin_top=4))
+        self.bar_container = toga.Box(
+            children=[self.mode2_box, self.calc_button_bar, self.mode2_results_box],
+            style=Pack(direction=COLUMN, gap=8)
+        )
 
-        # Стэки
-        self.input_stack = toga.Box(style=Pack(direction=COLUMN, gap=8))
-        self.results_stack = toga.Box(style=Pack(direction=COLUMN, gap=8))
+        self.erg_page = toga.ScrollContainer(content=self.erg_container)
+        self.bar_page = toga.ScrollContainer(content=self.bar_container)
 
-        # Кнопка
-        self.calc_button = toga.Button("", on_press=self.calculate, style=S_BTN)
+        # ----- Контейнер вкладок -----
+        self.tabs_holder = toga.Box(style=Pack(direction=COLUMN, flex=1))
+        self._build_tabs()  # создаём OptionContainer и кладём в holder
 
-        # Компоновка
+        # Компоновка верхней части
         head_row = toga.Box(children=[self.title_label], style=Pack(direction=ROW, margin_bottom=8))
         lang_row = toga.Box(children=[self.lang_caption, self.lang_sel], style=S_ROW)
-        mode_row = toga.Box(children=[self.mode_caption, self.mode_widget], style=S_ROW)
         common_row = toga.Box(children=[self.gender_caption, self.gender,
                                         self.weight_caption, self.weight], style=S_ROW)
 
-        main_box = toga.Box(children=[head_row, lang_row, mode_row, common_row,
-                                      self.input_stack, self.calc_button, self.results_stack],
-                            style=S_MAIN)
+        main_box = toga.Box(children=[
+            head_row, lang_row, common_row,
+            self.tabs_holder  # тут наши вкладки
+        ], style=S_MAIN)
+
         scroller = toga.ScrollContainer(content=main_box)
 
-        # Локализация текстов
+        # Локализация текстов и первичная инициализация
         self._apply_language()
-
-        # Время/режим
         self._rebuild_time_selects()
-        self._set_mode_ui()
 
         self.main_window.content = scroller
+
+    # ---------- Tabs ----------
+    def _build_tabs(self):
+        # очистить holder
+        for c in list(self.tabs_holder.children):
+            self.tabs_holder.remove(c)
+
+        try:
+            # чаще всего порядок (label, widget)
+            self.tabs = toga.OptionContainer(
+                content=[(self.tr("mode_erg"), self.erg_page),
+                         (self.tr("mode_bar"), self.bar_page)],
+                style=Pack(flex=1)  # <-- растягиваемся по высоте
+            )
+        except TypeError:
+            # fallback на обратный порядок (widget, label)
+            self.tabs = toga.OptionContainer(
+                content=[(self.erg_page, self.tr("mode_erg")),
+                         (self.bar_page, self.tr("mode_bar"))],
+                style=Pack(flex=1)
+            )
+
+        self.tabs_holder.add(self.tabs)
+
+    def _retitle_tabs(self):
+        """Обновляет заголовки вкладок при смене языка."""
+        # Самый надёжный способ на 0.5.2 — пересоздать OptionContainer с новыми label.
+        self._build_tabs()
 
     # ---- локализация UI ----
     def tr(self, key):
@@ -338,7 +370,6 @@ class RowStrengthApp(toga.App):
         self._updating = True
         try:
             if items is not None:
-                # сравниваем как списки строк
                 if list(getattr(sel, "items", [])) != list(items):
                     sel.items = items
             if value is not None:
@@ -351,7 +382,6 @@ class RowStrengthApp(toga.App):
         # простые Label
         self.title_label.text = self.tr("app_title")
         self.lang_caption.text = self.tr("language")
-        self.mode_caption.text = self.tr("mode_label")
         self.gender_caption.text = self.tr("gender")
         self.weight_caption.text = self.tr("weight")
         self.distance_caption.text = self.tr("distance")
@@ -364,7 +394,8 @@ class RowStrengthApp(toga.App):
         self.bar_weight_caption.text = self.tr("bar_weight")
         self.reps_caption.text = self.tr("reps")
         self.res2_title.text = self.tr("res2_title")
-        self.calc_button.text = self.tr("calc")
+        self.calc_button_erg.text = self.tr("calc")
+        self.calc_button_bar.text = self.tr("calc")
 
         # язык
         self._set_selection(self.lang_sel,
@@ -372,18 +403,11 @@ class RowStrengthApp(toga.App):
                             value=LANG_LABEL[self.lang])
 
         # пол
-        cur_gender_value = getattr(self, "gender", None).value
+        cur_gender_value = self.gender.value
         self._set_selection(self.gender,
                             items=GENDER_LABELS[self.lang],
                             value=cur_gender_value if cur_gender_value in GENDER_LABELS[self.lang]
                             else GENDER_LABELS[self.lang][1])
-
-        # режим
-        cur_mode_label = getattr(self.mode_widget, "value", MODE_LABELS[self.lang][0])
-        self._set_selection(self.mode_widget,
-                            items=MODE_LABELS[self.lang],
-                            value=cur_mode_label if cur_mode_label in MODE_LABELS[self.lang]
-                            else MODE_LABELS[self.lang][0])
 
         # упражнения
         old_ex = self.exercise.value
@@ -392,16 +416,10 @@ class RowStrengthApp(toga.App):
                             items=ex_items,
                             value=old_ex if old_ex in ex_items else ex_items[0])
 
-    # ---- вспомогательные методы UI ----
-    def _make_mode_widget(self):
-        items = MODE_LABELS[self.lang]
-        return toga.Selection(items=items, value=items[0], on_change=self._on_mode_changed, style=S_INPUT)
+        # заголовки вкладок
+        self._retitle_tabs()
 
-    def _get_mode_key(self) -> str:
-        label = self.mode_widget.value
-        return MODE_LABEL_TO_KEY[self.lang].get(label, "erg")
-
-    # ---- handlers (c подавлением ре-энтри) ----
+    # ---- handlers ----
     def _on_lang_changed(self, widget):
         if self._updating:
             return
@@ -409,26 +427,16 @@ class RowStrengthApp(toga.App):
         self.lang = inv.get(self.lang_sel.value, "en")
         self._apply_language()
         self._rebuild_time_selects()
-        self._set_mode_ui()
+        self._clear_results()
 
-    def _replace_children(self, box: toga.Box, new_children):
-        for child in list(box.children):
-            box.remove(child)
-        for child in new_children:
-            box.add(child)
-
-    def _set_mode_ui(self):
-        if self._get_mode_key() == "erg":
-            self._replace_children(self.input_stack, [self.mode1_box])
-            self._replace_children(self.results_stack, [self.mode1_results_box])
-        else:
-            self._replace_children(self.input_stack, [self.mode2_box])
-            self._replace_children(self.results_stack, [self.mode2_results_box])
-
-    def _on_mode_changed(self, widget):
-        if self._updating:
-            return
-        self._set_mode_ui()
+    def _clear_results(self):
+        # очищаем результаты обоих режимов
+        if hasattr(self, "res1_output"):
+            self.res1_output.value = ""
+        if hasattr(self, "res1_output_strength"):
+            self.res1_output_strength.value = ""
+        if hasattr(self, "res2_output"):
+            self.res2_output.value = ""
 
     def _on_distance_changed(self, widget):
         if self._updating:
@@ -454,7 +462,6 @@ class RowStrengthApp(toga.App):
 
         minutes_items = [_two(i) for i in range(min_mm, max_mm + 1)]
         prev_min = self.time_min.value if self.time_min.value in minutes_items else _two(min_mm)
-        # обновляем селекты времени также под флагом
         self._set_selection(self.time_min, items=minutes_items, value=prev_min)
 
         sec_items = [_two(i) for i in range(60)]
@@ -465,7 +472,7 @@ class RowStrengthApp(toga.App):
             self.time_ms.value = "0"
 
     # ---- бизнес-логика ----
-    def calculate(self, widget):
+    def calculate_erg(self, widget):
         def _meters_from_key(k) -> int:
             m = re.search(r"\d+", str(k))
             return int(m.group()) if m else 0
@@ -474,82 +481,93 @@ class RowStrengthApp(toga.App):
             g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
             weight = int(self.weight.value)
 
-            if self._get_mode_key() == "erg":
-                distance = int(self.distance.value)
-                distance_data = get_distance_data(g_key, distance, self.rowing_data)
-                if not distance_data:
-                    raise ValueError(self.tr("err_no_data"))
+            distance = int(self.distance.value)
+            distance_data = get_distance_data(g_key, distance, self.rowing_data)
+            if not distance_data:
+                raise ValueError(T["err_no_data"][self.lang])
 
-                t_norm = f"{self.time_min.value}:{self.time_sec.value}"
-                distance_data_time = distance_data.get(t_norm) or distance_data.get(t_norm.lstrip("0"))
-                if not distance_data_time:
-                    times_str = list(distance_data.keys())
-                    raise ValueError(self.tr("err_time_range").format(a=times_str[0], b=times_str[-1]))
+            t_norm = f"{self.time_min.value}:{self.time_sec.value}"
+            distance_data_time = distance_data.get(t_norm) or distance_data.get(t_norm.lstrip("0"))
+            if not distance_data_time:
+                times_str = list(distance_data.keys())
+                raise ValueError(T["err_time_range"][self.lang].format(a=times_str[0], b=times_str[-1]))
 
-                percent = distance_data_time.get("percent")
-                strength = get_strength_data(g_key, weight, self.strength_data_all)
-                if not strength:
-                    raise ValueError(self.tr("err_no_strength"))
+            percent = distance_data_time.get("percent")
+            strength = get_strength_data(g_key, weight, self.strength_data_all)
+            if not strength:
+                raise ValueError(T["err_no_strength"][self.lang])
 
-                keys = [kk for kk in distance_data_time.keys() if kk != "percent"]
-                keys.sort(key=_meters_from_key)
-                lines_dist = []
-                for k in keys:
-                    v = distance_data_time[k]
-                    meters = _meters_from_key(k)
-                    split = get_split_500m(distance=str(meters), time=v)
-                    lines_dist.append(f"{meters} m — {v}.00 ({split})")
-                self.res1_output.value = "\n".join(lines_dist)
+            keys = [kk for kk in distance_data_time.keys() if kk != "percent"]
+            keys.sort(key=_meters_from_key)
+            lines_dist = []
+            for k in keys:
+                v = distance_data_time[k]
+                meters = _meters_from_key(k)
+                split = get_split_500m(distance=str(meters), time=v)
+                # единицы оставлю в "m" и "kg" для универсальности
+                lines_dist.append(f"{meters} m — {v}.00 ({split})")
+            self.res1_output.value = "\n".join(lines_dist)
 
-                ex_labels = EX_KEY_TO_LABEL[self.lang]
-                lines_str = []
-                for ex_key, label in ex_labels.items():
-                    kilo = strength.get(ex_key, {}).get(percent)
-                    if kilo == "1":
-                        vmap = strength.get(ex_key, {})
-                        kilo = round((float(kilo) + float(vmap.get("1"))) / 2, 2)
-                    lines_str.append(f"{label}: {kilo} kg")
-                self.res1_output_strength.value = "\n".join(lines_str)
-
-            else:
-                ex_key = EX_UI_TO_KEY[self.lang][self.exercise.value]
-                bar_w = float(self.bar_weight.value)
-                reps = int(self.reps.value)
-                if reps not in REPS_TABLE:
-                    raise ValueError(self.tr("err_reps"))
-
-                rep_max = round((bar_w / REPS_TABLE[reps]) * 100, 2)
-
-                strength_for_user = get_strength_data(g_key, weight, self.strength_data_all)
-                if not strength_for_user:
-                    raise ValueError(self.tr("err_no_strength"))
-
-                ex_table = strength_for_user.get(ex_key, {})
-                i_percent = None
-                for pct_str, val in ex_table.items():
-                    if float(val) <= rep_max:
-                        i_percent = float(pct_str)
-                    else:
-                        break
-                if i_percent is None:
-                    raise ValueError(self.tr("err_1rm_map"))
-
-                distance_data = get_distance_data(g_key, 2000, self.rowing_data)
-                km2_res = None
-                for k, v in distance_data.items():
-                    km2_res = k
-                    if float(v.get("percent")) < i_percent:
-                        break
-
-                self.res2_output.value = "\n".join([
-                    self.tr("res_1rm").format(v=rep_max),
-                    self.tr("res_2k").format(v=km2_res)
-                ])
+            ex_labels = EX_KEY_TO_LABEL[self.lang]
+            lines_str = []
+            for ex_key, label in ex_labels.items():
+                kilo = strength.get(ex_key, {}).get(percent)
+                if kilo == "1":
+                    vmap = strength.get(ex_key, {})
+                    kilo = round((float(kilo) + float(vmap.get("1"))) / 2, 2)
+                lines_str.append(f"{label}: {kilo} kg")
+            self.res1_output_strength.value = "\n".join(lines_str)
 
         except Exception as e:
             try:
-                exc_type, exc_obj, exc_tb = sys.exc_info()
-                self.main_window.error_dialog("Error", f"{str(e)}, line {exc_tb.tb_lineno}")
+                import traceback
+                self.main_window.error_dialog("Error", f"{e}\n\n{traceback.format_exc()}")
+            except Exception:
+                print("Error:", e)
+
+    def calculate_bar(self, widget):
+        try:
+            g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
+            weight = int(self.weight.value)
+
+            ex_key = EX_UI_TO_KEY[self.lang][self.exercise.value]
+            bar_w = float(self.bar_weight.value)
+            reps = int(self.reps.value)
+            if reps not in REPS_TABLE:
+                raise ValueError(T["err_reps"][self.lang])
+
+            rep_max = round((bar_w / REPS_TABLE[reps]) * 100, 2)
+
+            strength_for_user = get_strength_data(g_key, weight, self.strength_data_all)
+            if not strength_for_user:
+                raise ValueError(T["err_no_strength"][self.lang])
+
+            ex_table = strength_for_user.get(ex_key, {})
+            i_percent = None
+            for pct_str, val in ex_table.items():
+                if float(val) <= rep_max:
+                    i_percent = float(pct_str)
+                else:
+                    break
+            if i_percent is None:
+                raise ValueError(T["err_1rm_map"][self.lang])
+
+            distance_data = get_distance_data(g_key, 2000, self.rowing_data)
+            km2_res = None
+            for k, v in distance_data.items():
+                km2_res = k
+                if float(v.get("percent")) < i_percent:
+                    break
+
+            self.res2_output.value = "\n".join([
+                T["res_1rm"][self.lang].format(v=rep_max),
+                T["res_2k"][self.lang].format(v=km2_res)
+            ])
+
+        except Exception as e:
+            try:
+                import traceback
+                self.main_window.error_dialog("Error", f"{e}\n\n{traceback.format_exc()}")
             except Exception:
                 print("Error:", e)
 

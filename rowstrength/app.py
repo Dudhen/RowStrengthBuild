@@ -18,21 +18,21 @@ REPS_TABLE = {
 }
 WINDOW_SIZE = (1000, 750)
 
-# ---------- Стили ----------
+# ---------- Стили (лениво, чтобы не падать на iOS при импорте) ----------
 IS_IOS = (sys.platform == "ios")
 F_HEAD = 22 if IS_IOS else 18
 F_LABEL = 16 if IS_IOS else 14
 F_INPUT = 16 if IS_IOS else 14
 PAD_MAIN = 18 if IS_IOS else 14
 
-S_MAIN = Pack(direction=COLUMN, margin=PAD_MAIN)       # без gap
-S_ROW = Pack(direction=ROW, margin_bottom=6)           # без gap
-S_HEAD = Pack(font_size=F_HEAD, margin_bottom=6)
-S_LABEL = Pack(font_size=F_LABEL, margin_right=8)
-S_INPUT = Pack(font_size=F_INPUT, margin_right=10)
-S_BTN = Pack(margin_top=6, margin_bottom=6)
-S_OUT = Pack(height=140, font_size=F_INPUT, margin_top=4)
-S_SECTION = Pack(direction=COLUMN)                      # без gap
+def S_MAIN():        return Pack(direction=COLUMN, padding=PAD_MAIN, flex=1)
+def S_ROW():         return Pack(direction=ROW, margin_bottom=6)
+def S_HEAD():        return Pack(font_size=F_HEAD, margin_bottom=6)
+def S_LABEL():       return Pack(font_size=F_LABEL, margin_right=8)
+def S_INPUT():       return Pack(font_size=F_INPUT, margin_right=10)
+def S_BTN():         return Pack(margin_top=6, margin_bottom=6)
+def S_OUT():         return Pack(height=140, font_size=F_INPUT, margin_top=4)
+def S_SECTION():     return Pack(direction=COLUMN)
 
 # ---------- Локализация ----------
 LANGS = ["en", "de", "fr", "es", "ru"]
@@ -161,7 +161,8 @@ def get_split_500m(distance: str, time: str) -> str:
 
 
 def load_json_from_package(filename: str):
-    with resources.files(__package__).joinpath("data").joinpath(filename).open("r", encoding="utf-8") as f:
+    pkg = __package__ or "rowstrength"
+    with resources.files(pkg).joinpath("data").joinpath(filename).open("r", encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -213,12 +214,16 @@ class RowStrengthApp(toga.App):
             T["splash"][self.lang],
             style=Pack(font_size=18, text_align="center", color="#6A5ACD")
         )
-        splash_box = toga.Box(
-            children=[splash_label],
-            # центрируем и по вертикали, и по горизонтали
-            style=Pack(direction=COLUMN, alignment="center", align_items="center", flex=1, padding=40)
-        )
-        self.main_window.content = splash_box
+        # Центрирование без Spacer: пустые Box сверху/снизу с flex=1
+        top_pad = toga.Box(style=Pack(flex=1))
+        mid = toga.Box(children=[splash_label], style=Pack(alignment="center"))
+        bottom_pad = toga.Box(style=Pack(flex=1))
+
+        splash_box = toga.Box(children=[top_pad, mid, bottom_pad],
+                              style=Pack(direction=COLUMN, flex=1, padding=40))
+
+        root = toga.Box(children=[splash_box], style=Pack(direction=COLUMN, flex=1))
+        self.main_window.content = root
         self.main_window.show()
 
         if sys.platform == "darwin":
@@ -275,48 +280,48 @@ class RowStrengthApp(toga.App):
         self.strength_data_all = load_json_from_package("data_for_strength_app.json")
 
         # заголовок и язык
-        self.title_label = toga.Label("", style=S_HEAD)
-        self.lang_caption = toga.Label("", style=S_LABEL)
+        self.title_label = toga.Label("", style=S_HEAD())
+        self.lang_caption = toga.Label("", style=S_LABEL())
         self.lang_sel = toga.Selection(
             items=[LANG_LABEL[c] for c in LANGS],
             value=LANG_LABEL[self.lang],
             on_change=self._on_lang_changed,
-            style=S_INPUT
+            style=S_INPUT()
         )
 
         # общие поля
-        self.gender_caption = toga.Label("", style=S_LABEL)
+        self.gender_caption = toga.Label("", style=S_LABEL())
         self.gender = toga.Selection(items=GENDER_LABELS[self.lang], value=GENDER_LABELS[self.lang][1],
-                                     on_change=self._on_gender_changed, style=S_INPUT)
-        self.weight_caption = toga.Label("", style=S_LABEL)
-        self.weight = toga.NumberInput(step=1, min=40, max=140, value=80, style=S_INPUT)
+                                     on_change=self._on_gender_changed, style=S_INPUT())
+        self.weight_caption = toga.Label("", style=S_LABEL())
+        self.weight = toga.NumberInput(step=1, min=40, max=140, value=80, style=S_INPUT())
 
         # -------- Эргометр (вкладка 1) --------
-        self.distance_caption = toga.Label("", style=S_LABEL)
-        self.minutes_caption = toga.Label("", style=S_LABEL)
-        self.seconds_caption = toga.Label("", style=S_LABEL)
-        self.centis_caption = toga.Label("", style=S_LABEL)
+        self.distance_caption = toga.Label("", style=S_LABEL())
+        self.minutes_caption = toga.Label("", style=S_LABEL())
+        self.seconds_caption = toga.Label("", style=S_LABEL())
+        self.centis_caption = toga.Label("", style=S_LABEL())
 
         self.distance = toga.Selection(items=[str(d) for d in DISTANCES], value="2000",
-                                       on_change=self._on_distance_changed, style=S_INPUT)
+                                       on_change=self._on_distance_changed, style=S_INPUT())
         self.time_min = toga.Selection(items=["06"], value="06",
-                                       on_change=self._on_time_min_changed, style=S_INPUT)
-        self.time_sec = toga.Selection(items=[_two(i) for i in range(60)], value="00", style=S_INPUT)
-        self.time_ms = toga.Selection(items=[str(i) for i in range(10)], value="0", style=S_INPUT)
+                                       on_change=self._on_time_min_changed, style=S_INPUT())
+        self.time_sec = toga.Selection(items=[_two(i) for i in range(60)], value="00", style=S_INPUT())
+        self.time_ms = toga.Selection(items=[str(i) for i in range(10)], value="0", style=S_INPUT())
 
-        self.res1_title = toga.Label("", style=S_LABEL)
-        self.res1_output = toga.MultilineTextInput(readonly=True, style=S_OUT)
-        self.res1_strength_title = toga.Label("", style=S_LABEL)
-        self.res1_output_strength = toga.MultilineTextInput(readonly=True, style=S_OUT)
+        self.res1_title = toga.Label("", style=S_LABEL())
+        self.res1_output = toga.MultilineTextInput(readonly=True, style=S_OUT())
+        self.res1_strength_title = toga.Label("", style=S_LABEL())
+        self.res1_output_strength = toga.MultilineTextInput(readonly=True, style=S_OUT())
 
-        row_distance = toga.Box(children=[self.distance_caption, self.distance], style=S_ROW)
+        row_distance = toga.Box(children=[self.distance_caption, self.distance], style=S_ROW())
         row_time = toga.Box(
             children=[self.minutes_caption, self.time_min, self.seconds_caption, self.time_sec, self.centis_caption, self.time_ms],
-            style=S_ROW
+            style=S_ROW()
         )
 
-        self.mode1_inputs = toga.Box(children=[row_distance, row_time], style=S_SECTION)
-        self.calc_button_erg = toga.Button("", on_press=self.calculate_erg, style=S_BTN)
+        self.mode1_inputs = toga.Box(children=[row_distance, row_time], style=S_SECTION())
+        self.calc_button_erg = toga.Button("", on_press=self.calculate_erg, style=S_BTN())
         self.mode1_results_box = toga.Box(
             children=[self.res1_title, self.res1_output, self.res1_strength_title, self.res1_output_strength],
             style=Pack(direction=COLUMN, margin_top=4)
@@ -327,23 +332,23 @@ class RowStrengthApp(toga.App):
         )
 
         # -------- Штанга (вкладка 2) --------
-        self.exercise_caption = toga.Label("", style=S_LABEL)
+        self.exercise_caption = toga.Label("", style=S_LABEL())
         self.exercise = toga.Selection(items=list(EX_UI_TO_KEY[self.lang].keys()),
-                                       value=list(EX_UI_TO_KEY[self.lang].keys())[0], style=S_INPUT)
-        self.bar_weight_caption = toga.Label("", style=S_LABEL)
-        self.bar_weight = toga.NumberInput(step=1, min=1, value=100, style=S_INPUT)
-        self.reps_caption = toga.Label("", style=S_LABEL)
-        self.reps = toga.NumberInput(step=1, min=1, max=30, value=5, style=S_INPUT)
+                                       value=list(EX_UI_TO_KEY[self.lang].keys())[0], style=S_INPUT())
+        self.bar_weight_caption = toga.Label("", style=S_LABEL())
+        self.bar_weight = toga.NumberInput(step=1, min=1, value=100, style=S_INPUT())
+        self.reps_caption = toga.Label("", style=S_LABEL())
+        self.reps = toga.NumberInput(step=1, min=1, max=30, value=5, style=S_INPUT())
 
-        self.res2_title = toga.Label("", style=S_LABEL)
-        self.res2_output = toga.MultilineTextInput(readonly=True, style=S_OUT)
+        self.res2_title = toga.Label("", style=S_LABEL())
+        self.res2_output = toga.MultilineTextInput(readonly=True, style=S_OUT())
 
-        row_ex = toga.Box(children=[self.exercise_caption, self.exercise], style=S_ROW)
-        row_w = toga.Box(children=[self.bar_weight_caption, self.bar_weight], style=S_ROW)
-        row_r = toga.Box(children=[self.reps_caption, self.reps], style=S_ROW)
+        row_ex = toga.Box(children=[self.exercise_caption, self.exercise], style=S_ROW())
+        row_w = toga.Box(children=[self.bar_weight_caption, self.bar_weight], style=S_ROW())
+        row_r = toga.Box(children=[self.reps_caption, self.reps], style=S_ROW())
 
-        self.mode2_inputs = toga.Box(children=[row_ex, row_w, row_r], style=S_SECTION)
-        self.calc_button_bar = toga.Button("", on_press=self.calculate_bar, style=S_BTN)
+        self.mode2_inputs = toga.Box(children=[row_ex, row_w, row_r], style=S_SECTION())
+        self.calc_button_bar = toga.Button("", on_press=self.calculate_bar, style=S_BTN())
         self.mode2_results_box = toga.Box(children=[self.res2_title, self.res2_output],
                                           style=Pack(direction=COLUMN, margin_top=4))
         self.bar_container = toga.Box(
@@ -361,11 +366,11 @@ class RowStrengthApp(toga.App):
 
         # Верхняя часть без внешнего ScrollContainer
         head_row = toga.Box(children=[self.title_label], style=Pack(direction=ROW, margin_bottom=8))
-        lang_row = toga.Box(children=[self.lang_caption, self.lang_sel], style=S_ROW)
+        lang_row = toga.Box(children=[self.lang_caption, self.lang_sel], style=S_ROW())
         common_row = toga.Box(children=[self.gender_caption, self.gender,
-                                        self.weight_caption, self.weight], style=S_ROW)
+                                        self.weight_caption, self.weight], style=S_ROW())
 
-        self.main_layout = toga.Box(children=[head_row, lang_row, common_row, self.tabs_holder], style=S_MAIN)
+        self.main_layout = toga.Box(children=[head_row, lang_row, common_row, self.tabs_holder], style=S_MAIN())
 
         # Локализация и первичная инициализация
         self._apply_language()
@@ -522,8 +527,11 @@ class RowStrengthApp(toga.App):
             t_norm = f"{self.time_min.value}:{self.time_sec.value}"
             distance_data_time = distance_data.get(t_norm) or distance_data.get(t_norm.lstrip("0"))
             if not distance_data_time:
-                times_str = list(distance_data.keys())
-                raise ValueError(T["err_time_range"][self.lang].format(a=times_str[0], b=times_str[-1]))
+                # показываем корректные границы времени
+                (min_mm, min_ss), (max_mm, max_ss) = _parse_time_range_from_data(distance_data)
+                a = f"{min_mm:02d}:{min_ss:02d}"
+                b = f"{max_mm:02d}:{max_ss:02d}"
+                raise ValueError(T["err_time_range"][self.lang].format(a=a, b=b))
 
             percent = distance_data_time.get("percent")
             strength = get_strength_data(g_key, weight, self.strength_data_all)

@@ -10,7 +10,6 @@ formal_name = "RowStrength"
 description = "Эргометр ↔ штанга: пересчёты времени/1ПМ с учётом веса."
 icon = "icons/app-icon"
 sources = ["rowstrength"]
-# requires = ["toga-ios>=0.4.4"]
 
 # macOS (десктоп)
 [tool.briefcase.app.rowstrength.macOS]
@@ -30,8 +29,6 @@ requires = ["toga-winforms>=0.4.4"]
 supported = true
 requires = [
   "toga-ios>=0.4.4",
-  # "toga-ios>=0.5.2",
-  # "travertino>=0.3.0", # Новое
   "std-nslog>=1.0.0",
   "rubicon-objc>=0.4.7,<0.5"
 ]

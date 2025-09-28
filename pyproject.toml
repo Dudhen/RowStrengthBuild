@@ -15,7 +15,10 @@ sources = ["rowstrength"]
 # macOS (десктоп)
 [tool.briefcase.app.rowstrength.macOS]
 supported = true
-requires = ["toga-cocoa>=0.4.4"]
+requires = [
+  "toga-cocoa>=0.4.4",
+  "std-nslog>=1.0.0"
+]
 
 # Windows (десктоп)
 [tool.briefcase.app.rowstrength.windows]
@@ -25,7 +28,10 @@ requires = ["toga-winforms>=0.4.4"]
 # iOS (стор/симулятор)
 [tool.briefcase.app.rowstrength.iOS]
 supported = true
-requires = ["toga-ios>=0.4.4"]
+requires = [
+  "toga-ios>=0.4.4",
+  "std-nslog>=1.0.0"
+]
 ios_deployment_target = "14.0"
 
 # Ресурсы приложения (JSON + Privacy Manifest)

@@ -220,9 +220,26 @@ class RowStrengthApp(toga.App):
         self.main_window.content = splash_box
         self.main_window.show()
 
-        # Неблокирующая задержка, без add_background_task
-        loop = asyncio.get_event_loop()
-        loop.call_later(3, self._init_ui)
+        if sys.platform == "darwin":  # macOS
+            # Запустим переключение после старта главного цикла
+            self.on_running = self._after_start
+        else:
+            # Windows/Linux – оставляем проверенный вариант
+            loop = asyncio.get_event_loop()
+            loop.call_later(3, self._safe_init_ui)
+
+    async def _after_start(self, app):
+        # даём кадр на отрисовку, затем ждём 3 секунды сплэша
+        await asyncio.sleep(0)  # yield в цикл Cocoa
+        await asyncio.sleep(3.0)
+        self._safe_init_ui()
+
+    def _safe_init_ui(self):
+        try:
+            self._init_ui()
+        except Exception as e:
+            import traceback
+            self.main_window.error_dialog("Init error", f"{e}\n\n{traceback.format_exc()}")
 
     # --------- Основной UI ----------
     def _init_ui(self):

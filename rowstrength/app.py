@@ -434,7 +434,7 @@ class RowStrengthApp(toga.App):
                             value=old_ex if old_ex in ex_items else ex_items[0])
 
         # заголовки вкладок
-        self._retitle_tabs()
+        # self._retitle_tabs()
 
     # ---- handlers ----
     def _on_lang_changed(self, widget):
@@ -445,6 +445,25 @@ class RowStrengthApp(toga.App):
         self._apply_language()
         self._rebuild_time_selects()
         self._clear_results()
+        self._set_tab_titles()
+
+    def _set_tab_titles(self):
+        # Обновить текст вкладок без пересоздания контейнера
+        if hasattr(self, "tabs") and self.tabs is not None:
+            try:
+                # Toga 0.5.x: доступ к списку элементов
+                items = list(self.tabs.content)
+                if len(items) >= 2:
+                    items[0].text = self.tr("mode_erg")
+                    items[1].text = self.tr("mode_bar")
+            except Exception:
+                # Fallback для других бэкэндов/версий
+                try:
+                    # Если API поддерживает адресацию по виджету
+                    self.tabs.set_tab_label(self.erg_page, self.tr("mode_erg"))
+                    self.tabs.set_tab_label(self.bar_page, self.tr("mode_bar"))
+                except Exception:
+                    pass
 
     def _clear_results(self):
         # очищаем результаты обоих режимов

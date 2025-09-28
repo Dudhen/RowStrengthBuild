@@ -24,17 +24,15 @@ F_HEAD = 22 if IS_IOS else 18
 F_LABEL = 16 if IS_IOS else 14
 F_INPUT = 16 if IS_IOS else 14
 PAD_MAIN = 18 if IS_IOS else 14
-GAP_MAIN = 14 if IS_IOS else 10
 
-S_MAIN = Pack(direction=COLUMN, margin=PAD_MAIN, gap=GAP_MAIN)
-S_ROW = Pack(direction=ROW, gap=10, margin_bottom=6, flex=0)
+S_MAIN = Pack(direction=COLUMN, margin=PAD_MAIN)               # без gap
+S_ROW = Pack(direction=ROW, margin_bottom=6)                    # без gap
 S_HEAD = Pack(font_size=F_HEAD, margin_bottom=6)
 S_LABEL = Pack(font_size=F_LABEL, margin_right=8)
 S_INPUT = Pack(font_size=F_INPUT)
 S_BTN = Pack(margin_top=6, margin_bottom=6)
 S_OUT = Pack(height=140, font_size=F_INPUT, margin_top=4)
-S_SECTION = Pack(direction=COLUMN, gap=6)            # вертикальные «секции»
-S_BTN_CENTER = Pack(margin_top=6, margin_bottom=2, text_align="center")
+S_SECTION = Pack(direction=COLUMN)                              # без gap
 
 # ---------- Локализация ----------
 LANGS = ["en", "de", "fr", "es", "ru"]
@@ -139,7 +137,6 @@ EX_KEY_TO_LABEL = {lang: {v: k for k, v in EX_UI_TO_KEY[lang].items()} for lang 
 GENDER_LABELS = {lang: [T["female"][lang], T["male"][lang]] for lang in LANGS}
 GENDER_MAP = {lang: {GENDER_LABELS[lang][0]: "female", GENDER_LABELS[lang][1]: "male"} for lang in LANGS}
 
-
 # ---------- Утилиты ----------
 def get_split_500m(distance: str, time: str) -> str:
     m = re.search(r'\d+', distance)
@@ -242,31 +239,24 @@ class RowStrengthApp(toga.App):
 
             UITapGestureRecognizer = ObjCClass("UITapGestureRecognizer")
 
-            # Объект-таргет для жеста
             class _TapCloser(NSObject):
                 @objc_method
                 def handleTap_(self, sender) -> None:
                     try:
-                        # закрыть любой first responder (picker/keyboard)
                         self.window_ref._impl.native.view.endEditing(True)
                     except Exception:
                         pass
 
             self._tap_delegate = _TapCloser.alloc().init()
-            # передадим ссылку на окно (чтоб не ловить GC и было что закрывать)
             self._tap_delegate.window_ref = self.main_window
 
             view = self.main_window._impl.native.view
             self._tap_recognizer = UITapGestureRecognizer.alloc().initWithTarget_action_(
                 self._tap_delegate, "handleTap:"
             )
-            # Не глушим события для обычных контролов
             self._tap_recognizer.cancelsTouchesInView = False
-
-            # Повесим распознаватель на корневой вью
             view.addGestureRecognizer_(self._tap_recognizer)
         except Exception:
-            # На всякий случай — молча игнорируем, если вдруг нет rubicon/нестандартный бэкенд
             pass
 
     def _safe_init_ui(self):
@@ -292,7 +282,7 @@ class RowStrengthApp(toga.App):
             style=S_INPUT
         )
 
-        # общие поля (для обеих вкладок, сверху)
+        # общие поля
         self.gender_caption = toga.Label("", style=S_LABEL)
         self.gender = toga.Selection(items=GENDER_LABELS[self.lang], value=GENDER_LABELS[self.lang][1],
                                      on_change=self._on_gender_changed, style=S_INPUT)
@@ -317,22 +307,26 @@ class RowStrengthApp(toga.App):
         self.res1_strength_title = toga.Label("", style=S_LABEL)
         self.res1_output_strength = toga.MultilineTextInput(readonly=True, style=S_OUT)
 
-        # Ввод — более вертикально: 2 строки («Дистанция»; «Время»)
+        # Ввод — вертикально
         row_distance = toga.Box(children=[self.distance_caption, self.distance], style=S_ROW)
         row_time = toga.Box(
             children=[self.minutes_caption, self.time_min, self.seconds_caption, self.time_sec, self.centis_caption, self.time_ms],
             style=S_ROW
         )
-
         self.mode1_inputs = toga.Box(children=[row_distance, row_time], style=S_SECTION)
+        self.mode1_inputs.style.update(margin_bottom=8)
+
         self.calc_button_erg = toga.Button("", on_press=self.calculate_erg, style=S_BTN)
+        self.calc_button_erg.style.update(margin_bottom=8)
+
         self.mode1_results_box = toga.Box(
             children=[self.res1_title, self.res1_output, self.res1_strength_title, self.res1_output_strength],
-            style=Pack(direction=COLUMN, gap=10, margin_top=4)
+            style=Pack(direction=COLUMN, margin_top=4)
         )
+
         self.erg_container = toga.Box(
             children=[self.mode1_inputs, self.calc_button_erg, self.mode1_results_box],
-            style=Pack(direction=COLUMN, gap=8)
+            style=Pack(direction=COLUMN)
         )
 
         # -------- Штанга (вкладка 2) --------
@@ -347,18 +341,22 @@ class RowStrengthApp(toga.App):
         self.res2_title = toga.Label("", style=S_LABEL)
         self.res2_output = toga.MultilineTextInput(readonly=True, style=S_OUT)
 
-        # Ввод — вертикально: 3 короткие строки
         row_ex = toga.Box(children=[self.exercise_caption, self.exercise], style=S_ROW)
         row_w = toga.Box(children=[self.bar_weight_caption, self.bar_weight], style=S_ROW)
         row_r = toga.Box(children=[self.reps_caption, self.reps], style=S_ROW)
 
         self.mode2_inputs = toga.Box(children=[row_ex, row_w, row_r], style=S_SECTION)
+        self.mode2_inputs.style.update(margin_bottom=8)
+
         self.calc_button_bar = toga.Button("", on_press=self.calculate_bar, style=S_BTN)
+        self.calc_button_bar.style.update(margin_bottom=8)
+
         self.mode2_results_box = toga.Box(children=[self.res2_title, self.res2_output],
-                                          style=Pack(direction=COLUMN, gap=10, margin_top=4))
+                                          style=Pack(direction=COLUMN, margin_top=4))
+
         self.bar_container = toga.Box(
             children=[self.mode2_inputs, self.calc_button_bar, self.mode2_results_box],
-            style=Pack(direction=COLUMN, gap=8)
+            style=Pack(direction=COLUMN)
         )
 
         self.erg_page = toga.ScrollContainer(content=self.erg_container)
@@ -368,11 +366,10 @@ class RowStrengthApp(toga.App):
         self.tabs_holder = toga.Box(style=Pack(direction=COLUMN, flex=1))
         self._build_tabs()
 
-        # Компоновка верхней части
+        # Верхняя часть
         head_row = toga.Box(children=[self.title_label], style=Pack(direction=ROW, margin_bottom=8))
         lang_row = toga.Box(children=[self.lang_caption, self.lang_sel], style=S_ROW)
-        common_row = toga.Box(children=[self.gender_caption, self.gender,
-                                        self.weight_caption, self.weight], style=S_ROW)
+        common_row = toga.Box(children=[self.gender_caption, self.gender, self.weight_caption, self.weight], style=S_ROW)
 
         main_box = toga.Box(children=[head_row, lang_row, common_row, self.tabs_holder], style=S_MAIN)
         scroller = toga.ScrollContainer(content=main_box)
@@ -447,7 +444,7 @@ class RowStrengthApp(toga.App):
         ex_items = list(EX_UI_TO_KEY[self.lang].keys())
         self._set_selection(self.exercise, items=ex_items, value=old_ex if old_ex in ex_items else ex_items[0])
 
-        # переименовывать вкладки без пересоздания
+        # Обновить заголовки вкладок без пересоздания контейнера
         self._set_tab_titles()
 
     # ---- handlers ----

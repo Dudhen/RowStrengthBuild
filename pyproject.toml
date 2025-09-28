@@ -29,7 +29,9 @@ requires = ["toga-winforms>=0.4.4"]
 [tool.briefcase.app.rowstrength.iOS]
 supported = true
 requires = [
-  "toga-ios>=0.4.4",
+  # "toga-ios>=0.4.4",
+  "toga-ios>=0.5.2",
+  "travertino>=0.3.0", # Новое
   "std-nslog>=1.0.0",
   "rubicon-objc>=0.4.7,<0.5"
 ]

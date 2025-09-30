@@ -8,22 +8,18 @@ import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
 
-# -------- Константы/настройки --------
+# --------- Константы/стили ---------
 DISTANCES = [500, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 8000, 10000]
-SHOW_DISTANCES = [500, 1000, 2000, 3000, 5000, 6000, 10000]  # 7 строк
-REPS_TABLE = {
-    1: 100, 2: 97, 3: 94, 4: 92, 5: 89, 6: 86, 7: 83, 8: 81, 9: 78, 10: 75,
-    11: 73, 12: 71, 13: 70, 14: 68, 15: 67, 16: 65, 17: 64, 18: 63, 19: 61,
-    20: 60, 21: 59, 22: 58, 23: 57, 24: 56, 25: 55, 26: 54, 27: 53, 28: 52,
-    29: 51, 30: 50
-}
+SHOW_DISTANCES = [500, 1000, 2000, 3000, 5000, 6000, 10000]
+REPS_TABLE = {1: 100, 2: 97, 3: 94, 4: 92, 5: 89, 6: 86, 7: 83, 8: 81, 9: 78, 10: 75, 11: 73, 12: 71, 13: 70, 14: 68,
+              15: 67, 16: 65, 17: 64, 18: 63, 19: 61, 20: 60, 21: 59, 22: 58, 23: 57, 24: 56, 25: 55, 26: 54, 27: 53,
+              28: 52, 29: 51, 30: 50}
 WINDOW_SIZE = (1000, 750)
 
 IS_IOS = (sys.platform == "ios")
 F_HEAD = 22 if IS_IOS else 18
 F_LABEL = 16 if IS_IOS else 14
 F_INPUT = 16 if IS_IOS else 14
-PAD_MAIN = 16 if IS_IOS else 14
 
 CLR_HEADER_BG = "#D9CCFF"
 CLR_TABLE_BG = "#EDE7FF"
@@ -32,16 +28,10 @@ CLR_BTN_FG = "#2B1C7A"
 CLR_ACCENT = "#6A5ACD"
 
 
-def S_MAIN():  return Pack(direction=COLUMN, padding=PAD_MAIN, flex=1)
-
-
 def S_ROW():   return Pack(direction=ROW, padding_bottom=6)
 
 
 def S_COL():   return Pack(direction=COLUMN)
-
-
-def S_HEAD():  return Pack(font_size=F_HEAD, padding_bottom=6)
 
 
 def S_LBL():   return Pack(font_size=F_LABEL, padding_right=8, flex=1)
@@ -218,7 +208,6 @@ def make_table(rows, col_flex=None):
     return table
 
 
-# --- вспомогательный форс лэйаута для iOS ---
 def _force_layout_ios(window):
     if sys.platform != "ios":
         return
@@ -230,7 +219,7 @@ def _force_layout_ios(window):
         pass
 
 
-# -------- Приложение --------
+# --------- Приложение ---------
 class RowStrengthApp(toga.App):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -239,7 +228,7 @@ class RowStrengthApp(toga.App):
         self._erg_init_done = False
         self.rowing_data = None
         self.strength_data_all = None
-        # ссылки на заголовки таблиц (создаются только при расчёте)
+        # Создаём ссылки на заголовки таблиц, чтобы обновлять их текст при смене языка
         self.erg_tbl1_title_label = None
         self.erg_tbl2_title_label = None
         self.bar_tbl_title_label = None
@@ -304,17 +293,23 @@ class RowStrengthApp(toga.App):
         self.rowing_data = load_json_from_package("data_for_rowing_app.json")
         self.strength_data_all = load_json_from_package("data_for_strength_app.json")
 
-        # Шапка
-        title_lbl = toga.Label(T["title"][self.lang], style=Pack(font_size=F_HEAD, color="#501c59", padding=8))
+        # ===== Хедер на всю ширину =====
+        # Левая «пустая колонка» той же ширины, что и правая — чтобы заголовок был идеально по центру
+        left_pad = toga.Box(style=Pack(width=160))
         self.lang_sel = toga.Selection(items=[LANG_LABEL[c] for c in LANGS],
                                        value=LANG_LABEL[self.lang],
                                        on_change=self._on_lang_change,
                                        style=S_INP(160))
-        header = toga.Box(style=Pack(direction=ROW, background_color=CLR_HEADER_BG, padding_left=8, padding_right=8))
-        header.add(title_lbl)
-        header.add(toga.Box(style=Pack(flex=1)))
-        header.add(toga.Label(T["language"][self.lang], style=Pack(font_size=F_LABEL, padding_right=6)))
-        header.add(self.lang_sel)
+        right_box = toga.Box(children=[self.lang_sel], style=Pack(width=160))
+        title_lbl = toga.Label(T["title"][self.lang],
+                               style=Pack(font_size=F_HEAD, color="#501c59",
+                                          text_align="center", padding_top=8, padding_bottom=8))
+        header = toga.Box(style=Pack(direction=ROW, background_color=CLR_HEADER_BG))
+        header.add(left_pad)
+        header.add(title_lbl)  # центр, flex у Label даст ширину = остальному пространству
+        header.add(right_box)
+        # Красивый вертикальный отступ между хедером и контентом
+        top_spacing = toga.Box(style=Pack(height=10))
 
         # ===== Вкладка Эргометр =====
         self.gender_lbl = toga.Label(T["gender"][self.lang], style=S_LBL())
@@ -341,7 +336,6 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
-        # Контейнер результатов Эргометра (пустой до нажатия)
         self.erg_results_holder = toga.Box(style=S_COL())
 
         erg_rows = [
@@ -352,12 +346,12 @@ class RowStrengthApp(toga.App):
             toga.Box(children=[self.sec_lbl, self.sec_sel], style=S_ROW()),
             toga.Box(children=[self.cen_lbl, self.cen_sel], style=S_ROW()),
             toga.Box(children=[self.btn_erg], style=S_ROW()),
-            self.erg_results_holder,  # тут появятся заголовки и таблицы после расчёта
+            self.erg_results_holder,
         ]
         erg_col = toga.Box(children=erg_rows, style=S_COL())
         erg_page = toga.ScrollContainer(content=erg_col, horizontal=False)
 
-        # ===== Вкладка Штанга ===== (с Полом и Весом)
+        # ===== Вкладка Штанга =====
         self.gender_b_lbl = toga.Label(T["gender"][self.lang], style=S_LBL())
         self.gender_b = toga.Selection(items=GENDER_LABELS[self.lang], value=GENDER_LABELS[self.lang][1],
                                        style=S_INP(160))
@@ -380,7 +374,6 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
-        # Контейнер результатов Штанги (пустой до нажатия)
         self.bar_results_holder = toga.Box(style=S_COL())
 
         bar_rows = [
@@ -390,7 +383,7 @@ class RowStrengthApp(toga.App):
             toga.Box(children=[self.bw_lbl, self.bar_weight], style=S_ROW()),
             toga.Box(children=[self.reps_lbl, self.reps], style=S_ROW()),
             toga.Box(children=[self.btn_bar], style=S_ROW()),
-            self.bar_results_holder,  # тут появится заголовок + таблица после расчёта
+            self.bar_results_holder,
         ]
         bar_col = toga.Box(children=bar_rows, style=S_COL())
         bar_page = toga.ScrollContainer(content=bar_col, horizontal=False)
@@ -407,17 +400,18 @@ class RowStrengthApp(toga.App):
 
         root = toga.Box(style=Pack(direction=COLUMN, flex=1))
         root.add(header)
+        root.add(top_spacing)  # увеличенный зазор под шапкой
         root.add(self.tabs)
         self.main_window.content = root
 
-        # Первичная инициализация таймингов
+        # Первичная инициализация времени
         self._rebuild_time_selects()
         self._erg_init_done = True
 
-        # Пост-фиксации для iOS/первой отрисовки
+        # Постфиксы для iOS/первой раскладки
         self._post_build_fixups()
 
-    # ---- Пост-фиксации для iOS и первой раскладки ----
+    # ---- Постфиксы ----
     def _post_build_fixups(self):
         try:
             self.btn_erg.style.flex = 1
@@ -429,11 +423,9 @@ class RowStrengthApp(toga.App):
 
         try:
             self._rebuild_time_selects()
-
             minutes = list(self.min_sel.items) or []
             if "06" in minutes:
                 self.min_sel.value = "06"
-
                 g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
                 dist = int(self.distance.value)
                 dist_data = get_distance_data(g_key, dist, self.rowing_data)
@@ -441,7 +433,6 @@ class RowStrengthApp(toga.App):
                 secs = sec_map.get("06", list(self.sec_sel.items) or ["00"])
                 self.sec_sel.items = secs
                 self.sec_sel.value = secs[0]
-
             self.min_sel.refresh()
             self.sec_sel.refresh()
         except Exception:
@@ -488,20 +479,29 @@ class RowStrengthApp(toga.App):
         self.sec_sel.items = seconds
         self.sec_sel.value = default_sec
 
-    # ---- Обновление существующих заголовков (без пересчёта) ----
+    # ---- Обновление заголовков, чтобы не «наслаивались» ----
     def _update_existing_titles(self):
-        # Эргометр
         if self.erg_tbl1_title_label is not None:
+            self.erg_tbl1_title_label.text = ""
+            self.erg_tbl1_title_label.refresh()
             self.erg_tbl1_title_label.text = T["erg_tbl1_title"][self.lang]
+            self.erg_tbl1_title_label.refresh()
+
         if self.erg_tbl2_title_label is not None:
+            self.erg_tbl2_title_label.text = ""
+            self.erg_tbl2_title_label.refresh()
             try:
                 w = int(float(self.weight.value or 0))
             except Exception:
                 w = 0
             self.erg_tbl2_title_label.text = T["erg_tbl2_title"][self.lang].format(w=w)
-        # Штанга
+            self.erg_tbl2_title_label.refresh()
+
         if self.bar_tbl_title_label is not None:
+            self.bar_tbl_title_label.text = ""
+            self.bar_tbl_title_label.refresh()
             self.bar_tbl_title_label.text = T["bar_tbl_title"][self.lang]
+            self.bar_tbl_title_label.refresh()
 
     # ---- Handlers ----
     def _on_lang_change(self, widget):
@@ -510,14 +510,14 @@ class RowStrengthApp(toga.App):
         self.lang = inv.get(self.lang_sel.value, "ru")
         self._apply_language_texts()
         self._rebuild_time_selects()
-        # НЕ рассчитываем автоматически! Только обновляем заголовки уже показанных таблиц (если они есть).
         self._update_existing_titles()
         self._post_build_fixups()
 
     def _apply_language_texts(self):
+        # Обновляем заголовки и подписи (без автопересчёта)
+        # Хедер — второй ребёнок это центральный Label
         header = self.main_window.content.children[0]
-        header.children[0].text = T["title"][self.lang]
-        header.children[-2].text = T["language"][self.lang]
+        header.children[1].text = T["title"][self.lang]
 
         # Эргометр
         self.gender_lbl.text = T["gender"][self.lang]
@@ -527,7 +527,6 @@ class RowStrengthApp(toga.App):
         self.sec_lbl.text = T["seconds"][self.lang]
         self.cen_lbl.text = T["centis"][self.lang]
         self.btn_erg.text = T["calc"][self.lang]
-        # Пол всегда Муж по умолчанию при смене языка
         self.gender.items = GENDER_LABELS[self.lang]
         self.gender.value = GENDER_LABELS[self.lang][1]
 
@@ -599,7 +598,6 @@ class RowStrengthApp(toga.App):
             strength = get_strength_data(g_key, bw, self.strength_data_all)
             if not strength: self._info(T["err_no_strength"][self.lang]); return
 
-            # Таблица 1 (7x3)
             rows1, keys = [], [k for k in dist_data_time.keys() if k != "percent"]
             kmap = {meters_from_key(k): dist_data_time[k] for k in keys}
             for m in SHOW_DISTANCES:
@@ -607,7 +605,6 @@ class RowStrengthApp(toga.App):
                     t = kmap[m]
                     rows1.append([f"{m} m", f"{t}.00", get_split_500m(m, t)])
 
-            # Таблица 2 (3x2)
             rows2, labels = [], EX_KEY_TO_LABEL[self.lang]
             for ex_key, ui_label in labels.items():
                 kilo = strength.get(ex_key, {}).get(percent)
@@ -616,7 +613,6 @@ class RowStrengthApp(toga.App):
                     kilo = round((float(kilo) + float(vmap.get("1"))) / 2, 2)
                 rows2.append([ui_label, f"{kilo} kg"])
 
-            # Показать заголовки + таблицы (только сейчас)
             self.erg_results_holder.children.clear()
 
             # Заголовок 1
@@ -628,7 +624,7 @@ class RowStrengthApp(toga.App):
             # Таблица 1
             self.erg_results_holder.add(make_table(rows1, col_flex=[1, 1, 1]))
 
-            # Заголовок 2 (с весом)
+            # Заголовок 2
             self.erg_tbl2_title_label = toga.Label(
                 T["erg_tbl2_title"][self.lang].format(w=int(bw)),
                 style=Pack(font_size=F_LABEL, color=CLR_ACCENT, padding_top=6, padding_bottom=2)
@@ -686,7 +682,6 @@ class RowStrengthApp(toga.App):
                 [T["tbl_2k"][self.lang], km2_res],
             ]
 
-            # Показать заголовок + таблицу (только сейчас)
             self.bar_results_holder.children.clear()
 
             self.bar_tbl_title_label = toga.Label(

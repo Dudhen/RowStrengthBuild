@@ -105,7 +105,7 @@ T = {
     "err_weight": {"en": "Body weight must be between 40 and 140 kg.",
                    "de": "Körpergewicht muss zwischen 40 und 140 kg liegen.",
                    "fr": "Le poids doit être entre 40 et 140 kg.",
-                   "es": "El peso corporal debe estar entre 40 y 140 kg.",
+                   "es": "El peso corporal debe estar entre 40 et 140 kg.",
                    "ru": "Упс: вес тела должен быть от 40 до 140"},
     "err_reps": {"en": "Supported reps: 1..30.",
                  "de": "Unterstützte Wiederholungen: 1..30.",
@@ -245,7 +245,7 @@ class RowStrengthApp(toga.App):
 
     # ---- Сплэш ----
     def startup(self):
-        self.main_window = toga.MainWindow(title="RowStrength", size=WINDOW_SIZE)
+        self.main_window = toga.MainWindow(title="", size=WINDOW_SIZE)
         for attr in ("resizeable", "resizable"):
             try:
                 setattr(self.main_window, attr, False)
@@ -298,24 +298,22 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
-    # ---- Вспомогательное: глубокий refresh поддерева (для iOS-лэйаута второй вкладки) ----
+    # ---- Вспомогательное: глубокий refresh поддерева ----
     def _deep_refresh(self, widget):
         try:
             widget.refresh()
         except Exception:
             pass
-        # сначала content (например, у ScrollContainer)
         content = getattr(widget, "content", None)
         if content is not None:
             self._deep_refresh(content)
-        # затем children (у Box и пр.)
         children = getattr(widget, "children", None)
         if children:
             for ch in list(children):
                 self._deep_refresh(ch)
 
     def _refresh_bar_layout(self):
-        # Пингуем всю вкладку «Штанга», даже если она ещё не показана
+        # Пингуем всю вкладку «Штанга» и форсим нативный ре-лейаут
         if self.bar_page is not None:
             self._deep_refresh(self.bar_page)
         _force_layout_ios(self.main_window)
@@ -373,14 +371,12 @@ class RowStrengthApp(toga.App):
             toga.Box(children=[self.sec_lbl, self.sec_sel], style=S_ROW()),
             toga.Box(children=[self.cen_lbl, self.cen_sel], style=S_ROW()),
             toga.Box(children=[self.btn_erg], style=S_ROW()),
-            self.erg_results_holder,  # тут появятся заголовки и таблицы после расчёта
+            self.erg_results_holder,
         ]
-        # ВАЖНО: задаём flex=1 у корневой колонки страницы, чтобы ScrollContainer
-        # сразу рассчитал нормальную ширину/высоту (особенно на iOS)
         self.erg_col = toga.Box(children=erg_rows, style=Pack(direction=COLUMN, flex=1))
         self.erg_page = toga.ScrollContainer(content=self.erg_col, horizontal=False, style=Pack(flex=1))
 
-        # ===== Вкладка Штанга ===== (с Полом и Весом)
+        # ===== Вкладка Штанга =====
         self.gender_b_lbl = toga.Label(T["gender"][self.lang], style=S_LBL())
         self.gender_b = toga.Selection(items=GENDER_LABELS[self.lang], value=GENDER_LABELS[self.lang][1],
                                        style=S_INP(160))
@@ -403,7 +399,6 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
-        # Контейнер результатов Штанги (пустой до нажатия)
         self.bar_results_holder = toga.Box(style=S_COL())
 
         bar_rows = [
@@ -413,21 +408,30 @@ class RowStrengthApp(toga.App):
             toga.Box(children=[self.bw_lbl, self.bar_weight], style=S_ROW()),
             toga.Box(children=[self.reps_lbl, self.reps], style=S_ROW()),
             toga.Box(children=[self.btn_bar], style=S_ROW()),
-            self.bar_results_holder,  # тут появится заголовок + таблица после расчёта
+            self.bar_results_holder,
         ]
-        # КЛЮЧ: как и для первой вкладки — flex=1 у корневой колонки и у ScrollContainer
         self.bar_col = toga.Box(children=bar_rows, style=Pack(direction=COLUMN, flex=1))
         self.bar_page = toga.ScrollContainer(content=self.bar_col, horizontal=False, style=Pack(flex=1))
 
-        # Tabs
+        # Tabs + обработчик переключения
         try:
-            self.tabs = toga.OptionContainer(content=[(T["mode_erg"][self.lang], self.erg_page),
-                                                      (T["mode_bar"][self.lang], self.bar_page)],
-                                             style=Pack(flex=1))
+            self.tabs = toga.OptionContainer(
+                content=[(T["mode_erg"][self.lang], self.erg_page),
+                         (T["mode_bar"][self.lang], self.bar_page)],
+                style=Pack(flex=1),
+                on_select=self._on_tab_change  # <---- важный обработчик
+            )
         except TypeError:
-            self.tabs = toga.OptionContainer(content=[(self.erg_page, T["mode_erg"][self.lang]),
-                                                      (self.bar_page, T["mode_bar"][self.lang])],
-                                             style=Pack(flex=1))
+            self.tabs = toga.OptionContainer(
+                content=[(self.erg_page, T["mode_erg"][self.lang]),
+                         (self.bar_page, T["mode_bar"][self.lang])],
+                style=Pack(flex=1)
+            )
+            # Для старого сигнатурного варианта — навешиваем колбэк отдельно
+            try:
+                self.tabs.on_select = self._on_tab_change
+            except Exception:
+                pass
 
         root = toga.Box(style=Pack(direction=COLUMN, flex=1))
         root.add(header)
@@ -441,6 +445,29 @@ class RowStrengthApp(toga.App):
         # Пост-фиксации для iOS/первой отрисовки
         self._post_build_fixups()
 
+    # ---- Реакция на переключение вкладки ----
+    def _on_tab_change(self, widget, option=None):
+        # Когда пользователь впервые открывает «Штангу», форсим лэйаут прямо сейчас
+        try:
+            selected_content = None
+            if option is not None and hasattr(option, "content"):
+                selected_content = option.content
+            else:
+                # запасной путь для разных реализаций toga
+                selected_content = getattr(widget, "current_tab", None)
+            if selected_content is self.bar_page or selected_content == self.bar_page:
+                # Микро-триггер инвалидации стилей + глубокий refresh
+                try:
+                    orig = self.bar_col.style.padding_top or 0
+                    self.bar_col.style.padding_top = orig + 0.01
+                    self.bar_col.style.padding_top = orig
+                except Exception:
+                    pass
+                self._refresh_bar_layout()
+        except Exception:
+            # В любом случае попробуем «пнуть» верстку
+            self._refresh_bar_layout()
+
     # ---- Пост-фиксации для iOS и первой раскладки ----
     def _post_build_fixups(self):
         try:
@@ -451,9 +478,7 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
-        # Обновим и «пнув» обе страницы — особенно вторую (Штанга)
         try:
-            # Пересобираем тайминги и секунды для Эргометра
             self._rebuild_time_selects()
 
             minutes = list(self.min_sel.items) or []
@@ -471,8 +496,8 @@ class RowStrengthApp(toga.App):
             # Глубокий refresh обеих страниц
             if self.erg_page is not None:
                 self._deep_refresh(self.erg_page)
-            self._refresh_bar_layout()  # критично для iOS
-
+            # заранее «прогреем» лэйаут «Штанги»
+            self._refresh_bar_layout()
         except Exception:
             pass
 
@@ -480,7 +505,6 @@ class RowStrengthApp(toga.App):
 
         def _second_pass():
             try:
-                # Второй короткий проход для закрепления констреинтов iOS
                 self.main_window.content.refresh()
                 if self.erg_page is not None:
                     self._deep_refresh(self.erg_page)
@@ -520,26 +544,49 @@ class RowStrengthApp(toga.App):
         # Эргометр
         if self.erg_tbl1_title_label is not None:
             self.erg_tbl1_title_label.text = T["erg_tbl1_title"][self.lang]
+            try: self.erg_tbl1_title_label.refresh()
+            except Exception: pass
         if self.erg_tbl2_title_label is not None:
             try:
                 w = int(float(self.weight.value or 0))
             except Exception:
                 w = 0
             self.erg_tbl2_title_label.text = T["erg_tbl2_title"][self.lang].format(w=w)
+            try: self.erg_tbl2_title_label.refresh()
+            except Exception: pass
         # Штанга
         if self.bar_tbl_title_label is not None:
             self.bar_tbl_title_label.text = T["bar_tbl_title"][self.lang]
+            try: self.bar_tbl_title_label.refresh()
+            except Exception: pass
+
+        _force_layout_ios(self.main_window)
 
     # ---- Handlers ----
     def _on_lang_change(self, widget):
-        if self._updating: return
+        if self._updating:
+            return
         inv = {v: k for k, v in LANG_LABEL.items()}
         self.lang = inv.get(self.lang_sel.value, "ru")
         self._apply_language_texts()
         self._rebuild_time_selects()
-        # НЕ рассчитываем автоматически! Только обновляем заголовки уже показанных таблиц (если они есть).
+
+        # Гарантированно избегаем «наслаивания» заголовков:
+        self.erg_results_holder.children.clear()
+        self.bar_results_holder.children.clear()
+        self.erg_tbl1_title_label = None
+        self.erg_tbl2_title_label = None
+        self.bar_tbl_title_label = None
+        try:
+            self.erg_results_holder.refresh()
+            self.bar_results_holder.refresh()
+        except Exception:
+            pass
+
+        # Обновляем уже существующие заголовки (если где-то остались ссылки)
         self._update_existing_titles()
-        # Важно также пропихнуть лэйаут «Штанги»
+
+        # И пинаем лэйаут «Штанги», т.к. смена языка может влиять на размеры
         self._refresh_bar_layout()
         self._post_build_fixups()
 
@@ -556,7 +603,6 @@ class RowStrengthApp(toga.App):
         self.sec_lbl.text = T["seconds"][self.lang]
         self.cen_lbl.text = T["centis"][self.lang]
         self.btn_erg.text = T["calc"][self.lang]
-        # Пол всегда Муж по умолчанию при смене языка
         self.gender.items = GENDER_LABELS[self.lang]
         self.gender.value = GENDER_LABELS[self.lang][1]
 
@@ -644,25 +690,20 @@ class RowStrengthApp(toga.App):
                     kilo = round((float(kilo) + float(vmap.get("1"))) / 2, 2)
                 rows2.append([ui_label, f"{kilo} kg"])
 
-            # Показать заголовки + таблицы (только сейчас)
             self.erg_results_holder.children.clear()
 
-            # Заголовок 1
             self.erg_tbl1_title_label = toga.Label(
                 T["erg_tbl1_title"][self.lang],
                 style=Pack(font_size=F_LABEL, color=CLR_ACCENT, padding_top=6, padding_bottom=2)
             )
             self.erg_results_holder.add(toga.Box(children=[self.erg_tbl1_title_label], style=S_ROW()))
-            # Таблица 1
             self.erg_results_holder.add(make_table(rows1, col_flex=[1, 1, 1]))
 
-            # Заголовок 2 (с весом)
             self.erg_tbl2_title_label = toga.Label(
                 T["erg_tbl2_title"][self.lang].format(w=int(bw)),
                 style=Pack(font_size=F_LABEL, color=CLR_ACCENT, padding_top=6, padding_bottom=2)
             )
             self.erg_results_holder.add(toga.Box(children=[self.erg_tbl2_title_label], style=S_ROW()))
-            # Таблица 2
             self.erg_results_holder.add(make_table(rows2, col_flex=[1, 1]))
 
         except Exception as e:
@@ -711,7 +752,6 @@ class RowStrengthApp(toga.App):
                 [T["tbl_2k"][self.lang], km2_res],
             ]
 
-            # Показать заголовок + таблицу (только сейчас)
             self.bar_results_holder.children.clear()
 
             self.bar_tbl_title_label = toga.Label(
@@ -721,7 +761,7 @@ class RowStrengthApp(toga.App):
             self.bar_results_holder.add(toga.Box(children=[self.bar_tbl_title_label], style=S_ROW()))
             self.bar_results_holder.add(make_table(rows, col_flex=[1, 1]))
 
-            # На всякий случай «пнуть» лэйаут вкладки после построения таблицы
+            # «Пнуть» верстку вкладки после построения таблицы
             self._refresh_bar_layout()
 
         except Exception as e:

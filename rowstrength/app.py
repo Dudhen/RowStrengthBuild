@@ -333,7 +333,6 @@ class RowStrengthApp(toga.App):
                 return items.index(cur)
         except Exception:
             pass
-        # fallback: предположим 0
         return 0
 
     def _select_tab_index(self, idx: int):
@@ -344,53 +343,93 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
         try:
-            # иногда работает такое поле
             self.tabs.current_tab_index = idx  # type: ignore[attr-defined]
         except Exception:
             pass
 
-    # ---- прогрев лэйаута «Штанги» через автоклик Calculate ----
+    # ---- «жёсткая» замена контейнера результатов (исчезновение таблиц гарантировано) ----
+    def _clear_results_holder(self, which: str):
+        if which == "erg":
+            parent = self.erg_col
+            old = getattr(self, "erg_results_holder", None)
+        else:
+            parent = self.bar_col
+            old = getattr(self, "bar_results_holder", None)
+
+        # удалить старый контейнер
+        try:
+            if parent is not None and old is not None:
+                try:
+                    parent.remove(old)
+                except Exception:
+                    # на некоторых платформах remove может отсутствовать — перестроим детей
+                    try:
+                        parent.children = [ch for ch in list(parent.children) if ch is not old]
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        # создать новый пустой контейнер и вставить в конец (у нас он всегда последний)
+        new_box = toga.Box(style=S_COL())
+        try:
+            if parent is not None:
+                parent.add(new_box)
+        except Exception:
+            pass
+
+        # обновить ссылку
+        if which == "erg":
+            self.erg_results_holder = new_box
+            self.erg_tbl1_title_label = None
+            self.erg_tbl2_title_label = None
+        else:
+            self.bar_results_holder = new_box
+            self.bar_tbl_title_label = None
+
+        # принудительный ре-лейаут
+        try:
+            if parent is not None:
+                parent.refresh()
+            page = self.erg_page if which == "erg" else self.bar_page
+            if page is not None:
+                page.refresh()
+            self._deep_refresh(self.main_window.content)
+            _force_layout_ios(self.main_window)
+        except Exception:
+            pass
+
+    def _clear_all_results(self):
+        self._clear_results_holder("erg")
+        self._clear_results_holder("bar")
+
+    # ---- прогрев лэйаута «Штанги» через автоклик Calculate, затем жёсткая очистка ----
     def _prime_bar_layout_then_clear(self):
-        # запомним исходную вкладку
         orig_idx = self._current_tab_index()
         try:
-            # переключаемся на «Штангу» (обычно индекс 1)
+            # переключаемся на «Штангу»
             self._select_tab_index(1)
-            # даём UI один тик
             _force_layout_ios(self.main_window)
             self._deep_refresh(self.bar_page or self.main_window.content)
 
-            # жмём «Рассчитать» программно
+            # нажимаем «Рассчитать»
             self.calculate_bar(None)
 
-            # форсим лэйаут после построения таблиц
-            self._deep_refresh(self.bar_page or self.main_window.content)
-            _force_layout_ios(self.main_window)
+            # чуть позже — жёсткая очистка, чтобы успели отработать измерения лэйаута
+            def _do_clear():
+                self._clear_results_holder("bar")
+                # на всякий случай ещё раз «пнуть»
+                self._deep_refresh(self.bar_page or self.main_window.content)
+                _force_layout_ios(self.main_window)
 
-            # очищаем результаты сразу после прогрева
-            self._clear_all_results()
+            asyncio.get_event_loop().call_later(0.02, _do_clear)
 
         finally:
-            # возвращаемся на исходную вкладку
-            self._select_tab_index(orig_idx)
-            _force_layout_ios(self.main_window)
-
-    # ---- Полная очистка результатов и ссылок на заголовки (обе вкладки) ----
-    def _clear_all_results(self):
-        try:
-            self.erg_results_holder.children.clear()
-            self.bar_results_holder.children.clear()
-        except Exception:
-            pass
-        self.erg_tbl1_title_label = None
-        self.erg_tbl2_title_label = None
-        self.bar_tbl_title_label = None
-        try:
-            self.erg_results_holder.refresh()
-            self.bar_results_holder.refresh()
-        except Exception:
-            pass
-        _force_layout_ios(self.main_window)
+            # вернуть исходную вкладку ещё через мгновение, чтобы очистка точно применилась
+            def _restore_tab():
+                self._select_tab_index(orig_idx)
+                _force_layout_ios(self.main_window)
+            asyncio.get_event_loop().call_later(0.04, _restore_tab)
 
     # ---- Основной UI ----
     def _build_main(self):
@@ -486,7 +525,7 @@ class RowStrengthApp(toga.App):
         self.bar_col = toga.Box(children=bar_rows, style=Pack(direction=COLUMN, flex=1))
         self.bar_page = toga.ScrollContainer(content=self.bar_col, horizontal=False, style=Pack(flex=1))
 
-        # Tabs (без особых обработчиков — нам хватит ручного прогрева)
+        # Tabs
         try:
             self.tabs = toga.OptionContainer(
                 content=[(T["mode_erg"][self.lang], self.erg_page),
@@ -511,7 +550,6 @@ class RowStrengthApp(toga.App):
 
         # Пост-фиксации и автопрогрев раскладки «Штанги»
         self._post_build_fixups()
-        # Очень короткая задержка, затем «автоклик» Calculate на «Штанге» и очистка
         asyncio.get_event_loop().call_later(0.05, self._prime_bar_layout_then_clear)
 
     # ---- Пост-фиксации для iOS и первой раскладки ----
@@ -602,13 +640,14 @@ class RowStrengthApp(toga.App):
         self._apply_language_texts()
         self._rebuild_time_selects()
 
-        # По твоему требованию: при смене языка убираем все таблицы с заголовками
+        # По требованию: при смене языка убираем все таблицы с экрана «жёстко»
         self._clear_all_results()
 
-        # На всякий — обновим заголовки, если позже что-то пересчитается
+        # На всякий случай обновим заголовки, если позже что-то пересчитается
         self._update_existing_titles()
 
-        # Небольшой пинок лэйауту
+        # Пинок лэйауту
+        self._deep_refresh(self.main_window.content)
         _force_layout_ios(self.main_window)
 
     def _apply_language_texts(self):

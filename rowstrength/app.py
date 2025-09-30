@@ -474,8 +474,8 @@ class RowStrengthApp(toga.App):
                 background_color=CLR_HEADER_BG,
                 padding_left=0,   # важно: без зазора слева
                 padding_right=0,
-                padding_top=4,
-                padding_bottom=4
+                # padding_top=4,
+                # padding_bottom=4
             )
         )
         header.add(top_row)

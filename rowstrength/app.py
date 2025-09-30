@@ -51,7 +51,8 @@ def S_BTN():   return Pack(padding_top=10, padding_bottom=10, padding_left=12, p
 LANGS = ["en", "de", "fr", "es", "ru"]
 LANG_LABEL = {"en": "English", "de": "Deutsch", "fr": "Français", "es": "Español", "ru": "Русский"}
 T = {
-    "splash": {l: "Dev by Dudhen: @arseny.dudchenko" for l in LANGS},
+    # сплэш теперь в 2 строки и по центру
+    "splash": {l: " Dev by Dudhen:\n@arseny.dudhen" for l in LANGS},
     "title": {l: "RowStrength by Dudhen" for l in LANGS},
     "mode_erg": {"en": "Ergometer", "de": "Ergometer", "fr": "Ergomètre", "es": "Ergómetro", "ru": "Эргометр"},
     "mode_bar": {"en": "Barbell", "de": "Langhantel", "fr": "Barre", "es": "Barra", "ru": "Штанга"},
@@ -242,10 +243,14 @@ class RowStrengthApp(toga.App):
         self.erg_col = None
         self.bar_page = None
         self.bar_col = None
+        # Виджеты хедера
+        self.header_dev_label = None
+        self.header_lang_label = None
+        self.lang_sel = None
 
     # ---- Сплэш ----
     def startup(self):
-        self.main_window = toga.MainWindow(title="RowStrength", size=WINDOW_SIZE)
+        self.main_window = toga.MainWindow(title="", size=WINDOW_SIZE)
         for attr in ("resizeable", "resizable"):
             try:
                 setattr(self.main_window, attr, False)
@@ -253,6 +258,7 @@ class RowStrengthApp(toga.App):
             except Exception:
                 pass
 
+        # Сплэш по центру, 2 строки
         splash = toga.Label(T["splash"][self.lang], style=Pack(font_size=18, text_align="center", color=CLR_ACCENT))
         center_row = toga.Box(style=Pack(direction=ROW, flex=1))
         center_row.add(toga.Box(style=Pack(flex=1)))
@@ -362,7 +368,6 @@ class RowStrengthApp(toga.App):
                 try:
                     parent.remove(old)
                 except Exception:
-                    # на некоторых платформах remove может отсутствовать — перестроим детей
                     try:
                         parent.children = [ch for ch in list(parent.children) if ch is not old]
                     except Exception:
@@ -370,7 +375,7 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
-        # создать новый пустой контейнер и вставить в конец (у нас он всегда последний)
+        # создать новый пустой контейнер и вставить в конец
         new_box = toga.Box(style=S_COL())
         try:
             if parent is not None:
@@ -418,14 +423,13 @@ class RowStrengthApp(toga.App):
             # чуть позже — жёсткая очистка, чтобы успели отработать измерения лэйаута
             def _do_clear():
                 self._clear_results_holder("bar")
-                # на всякий случай ещё раз «пнуть»
                 self._deep_refresh(self.bar_page or self.main_window.content)
                 _force_layout_ios(self.main_window)
 
             asyncio.get_event_loop().call_later(0.02, _do_clear)
 
         finally:
-            # вернуть исходную вкладку ещё через мгновение, чтобы очистка точно применилась
+            # вернуть исходную вкладку ещё через мгновение
             def _restore_tab():
                 self._select_tab_index(orig_idx)
                 _force_layout_ios(self.main_window)
@@ -436,17 +440,46 @@ class RowStrengthApp(toga.App):
         self.rowing_data = load_json_from_package("data_for_rowing_app.json")
         self.strength_data_all = load_json_from_package("data_for_strength_app.json")
 
-        # Шапка
-        title_lbl = toga.Label(T["title"][self.lang], style=Pack(font_size=F_HEAD, color="#501c59", padding=8))
-        self.lang_sel = toga.Selection(items=[LANG_LABEL[c] for c in LANGS],
-                                       value=LANG_LABEL[self.lang],
-                                       on_change=self._on_lang_change,
-                                       style=S_INP())
-        header = toga.Box(style=Pack(direction=ROW, background_color=CLR_HEADER_BG, padding_left=8, padding_right=8))
-        header.add(title_lbl)
-        header.add(toga.Box(style=Pack(flex=1)))
-        header.add(toga.Label(T["language"][self.lang], style=Pack(font_size=F_LABEL, padding_right=6)))
-        header.add(self.lang_sel)
+        # ====== Верхний фиолетовый прямоугольник (шапка) ======
+        # Строка 1: по центру "Dev by Dudhen"
+        self.header_dev_label = toga.Label(
+            "RowStrength by Dudhen",
+            style=Pack(font_size=F_HEAD, color="#501c59", text_align="center", padding_top=8, padding_bottom=4)
+        )
+        top_row = toga.Box(style=Pack(direction=ROW))
+        top_row.add(toga.Box(style=Pack(flex=1)))
+        top_row.add(self.header_dev_label)
+        top_row.add(toga.Box(style=Pack(flex=1)))
+
+        # Строка 2: слева лейбл "Язык" + селектор языка
+        self.lang_sel = toga.Selection(
+            items=[LANG_LABEL[c] for c in LANGS],
+            value=LANG_LABEL[self.lang],
+            on_change=self._on_lang_change,
+            style=S_INP()
+        )
+        self.header_lang_label = toga.Label(
+            T["language"][self.lang],
+            style=Pack(font_size=F_LABEL, padding_left=8, padding_right=6)
+        )
+        lang_row = toga.Box(style=Pack(direction=ROW, padding_bottom=2))
+        lang_row.add(toga.Box(style=Pack(flex=1)))  # заполнитель слева — сдвигаем вправо
+        lang_row.add(self.header_lang_label)
+        lang_row.add(self.lang_sel)
+
+        # Шапка без левого зазора, с внутренними отступами сверху/снизу
+        header = toga.Box(
+            style=Pack(
+                direction=COLUMN,
+                background_color=CLR_HEADER_BG,
+                padding_left=0,   # важно: без зазора слева
+                padding_right=0,
+                padding_top=4,
+                padding_bottom=4
+            )
+        )
+        header.add(top_row)
+        header.add(lang_row)
 
         # ===== Вкладка Эргометр =====
         self.gender_lbl = toga.Label(T["gender"][self.lang], style=S_LBL())
@@ -539,8 +572,11 @@ class RowStrengthApp(toga.App):
                 style=Pack(flex=1)
             )
 
+        # Корень + заметный зазор между шапкой и вкладками
+        spacer = toga.Box(style=Pack(height=16))  # явный вертикальный интервал под шапкой
         root = toga.Box(style=Pack(direction=COLUMN, flex=1))
         root.add(header)
+        root.add(spacer)
         root.add(self.tabs)
         self.main_window.content = root
 
@@ -651,9 +687,9 @@ class RowStrengthApp(toga.App):
         _force_layout_ios(self.main_window)
 
     def _apply_language_texts(self):
-        header = self.main_window.content.children[0]
-        header.children[0].text = T["title"][self.lang]
-        header.children[-2].text = T["language"][self.lang]
+        # Обновляем только текст метки языка в шапке и подписи форм
+        if self.header_lang_label is not None:
+            self.header_lang_label.text = T["language"][self.lang]
 
         # Эргометр
         self.gender_lbl.text = T["gender"][self.lang]

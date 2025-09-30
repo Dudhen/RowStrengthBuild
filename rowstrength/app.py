@@ -353,52 +353,41 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
-    # ---- «жёсткая» замена контейнера результатов (исчезновение таблиц гарантировано) ----
-    def _clear_results_holder(self, which: str):
-        if which == "erg":
-            parent = self.erg_col
-            old = getattr(self, "erg_results_holder", None)
-        else:
-            parent = self.bar_col
-            old = getattr(self, "bar_results_holder", None)
-
-        # удалить старый контейнер
+    # ---- надёжная очистка контейнера результатов (без замены бокса) ----
+    def _really_clear_holder_children(self, holder: toga.Box | None):
+        if holder is None:
+            return
         try:
-            if parent is not None and old is not None:
+            # Удаляем детей один за другим через API remove (надёжнее для iOS)
+            for ch in list(getattr(holder, "children", []) or []):
                 try:
-                    parent.remove(old)
+                    holder.remove(ch)
                 except Exception:
-                    try:
-                        parent.children = [ch for ch in list(parent.children) if ch is not old]
-                    except Exception:
-                        pass
+                    pass
+            # На всякий случай, если remove недоступен — чистим список детей
+            try:
+                holder.children.clear()
+            except Exception:
+                try:
+                    holder.children = []
+                except Exception:
+                    pass
+            holder.refresh()
         except Exception:
             pass
 
-        # создать новый пустой контейнер и вставить в конец
-        new_box = toga.Box(style=S_COL())
-        try:
-            if parent is not None:
-                parent.add(new_box)
-        except Exception:
-            pass
-
-        # обновить ссылку
+    def _clear_results_holder(self, which: str):
+        # вместо замены бокса — чистим его содержимое
         if which == "erg":
-            self.erg_results_holder = new_box
+            self._really_clear_holder_children(getattr(self, "erg_results_holder", None))
             self.erg_tbl1_title_label = None
             self.erg_tbl2_title_label = None
         else:
-            self.bar_results_holder = new_box
+            self._really_clear_holder_children(getattr(self, "bar_results_holder", None))
             self.bar_tbl_title_label = None
 
-        # принудительный ре-лейаут
+        # форсим лэйаут
         try:
-            if parent is not None:
-                parent.refresh()
-            page = self.erg_page if which == "erg" else self.bar_page
-            if page is not None:
-                page.refresh()
             self._deep_refresh(self.main_window.content)
             _force_layout_ios(self.main_window)
         except Exception:
@@ -408,28 +397,20 @@ class RowStrengthApp(toga.App):
         self._clear_results_holder("erg")
         self._clear_results_holder("bar")
 
-    # ---- прогрев лэйаута «Штанги» через автоклик Calculate, затем жёсткая очистка ----
+    # ---- прогрев лэйаута «Штанги» через автоклик Calculate, затем очистка ----
     def _prime_bar_layout_then_clear(self):
         orig_idx = self._current_tab_index()
         try:
-            # переключаемся на «Штангу»
             self._select_tab_index(1)
             _force_layout_ios(self.main_window)
             self._deep_refresh(self.bar_page or self.main_window.content)
-
-            # нажимаем «Рассчитать»
             self.calculate_bar(None)
-
-            # чуть позже — жёсткая очистка, чтобы успели отработать измерения лэйаута
             def _do_clear():
                 self._clear_results_holder("bar")
                 self._deep_refresh(self.bar_page or self.main_window.content)
                 _force_layout_ios(self.main_window)
-
             asyncio.get_event_loop().call_later(0.02, _do_clear)
-
         finally:
-            # вернуть исходную вкладку ещё через мгновение
             def _restore_tab():
                 self._select_tab_index(orig_idx)
                 _force_layout_ios(self.main_window)
@@ -451,7 +432,7 @@ class RowStrengthApp(toga.App):
         top_row.add(self.header_dev_label)
         top_row.add(toga.Box(style=Pack(flex=1)))
 
-        # Строка 2: слева лейбл "Язык" + селектор языка
+        # Строка 2: язык справа
         self.lang_sel = toga.Selection(
             items=[LANG_LABEL[c] for c in LANGS],
             value=LANG_LABEL[self.lang],
@@ -463,19 +444,18 @@ class RowStrengthApp(toga.App):
             style=Pack(font_size=F_LABEL, padding_left=8, padding_right=6)
         )
         lang_row = toga.Box(style=Pack(direction=ROW, padding_top=2, padding_bottom=6, background_color=CLR_HEADER_BG))
-        lang_row.add(toga.Box(style=Pack(flex=1)))  # заполнитель слева — сдвигаем вправо
+        lang_row.add(toga.Box(style=Pack(flex=1)))
         lang_row.add(self.header_lang_label)
         lang_row.add(self.lang_sel)
 
-        # Шапка без левого зазора, с внутренними отступами сверху/снизу
         header = toga.Box(
             style=Pack(
                 direction=COLUMN,
                 background_color=CLR_HEADER_BG,
-                padding_left=0,  # без зазора слева
+                padding_left=0,
                 padding_right=0,
-                padding_top=8,  # добавили верхний паддинг
-                padding_bottom=10  # и нижний паддинг
+                padding_top=8,
+                padding_bottom=10
             )
         )
         header.add(top_row)
@@ -676,8 +656,10 @@ class RowStrengthApp(toga.App):
         self._apply_language_texts()
         self._rebuild_time_selects()
 
-        # По требованию: при смене языка убираем все таблицы с экрана «жёстко»
+        # Всегда очищаем все рассчитанные результаты
         self._clear_all_results()
+        # И ещё раз через микрозадержку — на случай гонок перерисовки iOS
+        asyncio.get_event_loop().call_later(0.01, self._clear_all_results)
 
         # На всякий случай обновим заголовки, если позже что-то пересчитается
         self._update_existing_titles()

@@ -11,9 +11,12 @@ from toga.style.pack import COLUMN, ROW
 # --------- Константы/стили ---------
 DISTANCES = [500, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 8000, 10000]
 SHOW_DISTANCES = [500, 1000, 2000, 3000, 5000, 6000, 10000]
-REPS_TABLE = {1: 100, 2: 97, 3: 94, 4: 92, 5: 89, 6: 86, 7: 83, 8: 81, 9: 78, 10: 75, 11: 73, 12: 71, 13: 70, 14: 68,
-              15: 67, 16: 65, 17: 64, 18: 63, 19: 61, 20: 60, 21: 59, 22: 58, 23: 57, 24: 56, 25: 55, 26: 54, 27: 53,
-              28: 52, 29: 51, 30: 50}
+REPS_TABLE = {
+    1: 100, 2: 97, 3: 94, 4: 92, 5: 89, 6: 86, 7: 83, 8: 81, 9: 78, 10: 75,
+    11: 73, 12: 71, 13: 70, 14: 68, 15: 67, 16: 65, 17: 64, 18: 63, 19: 61,
+    20: 60, 21: 59, 22: 58, 23: 57, 24: 56, 25: 55, 26: 54, 27: 53, 28: 52,
+    29: 51, 30: 50
+}
 WINDOW_SIZE = (1000, 750)
 
 IS_IOS = (sys.platform == "ios")
@@ -29,19 +32,10 @@ CLR_ACCENT = "#6A5ACD"
 
 
 def S_ROW():   return Pack(direction=ROW, padding_bottom=6)
-
-
 def S_COL():   return Pack(direction=COLUMN)
-
-
 def S_LBL():   return Pack(font_size=F_LABEL, padding_right=8, flex=1)
-
-
-def S_INP(w=None): return Pack(font_size=F_INPUT, padding_right=10, width=w if w else None)
-
-
+def S_INP(w=None): return Pack(font_size=F_INPUT, padding_right=10)#, width=w if w else None) # Тест
 def S_BTN():   return Pack(padding_top=10, padding_bottom=10, padding_left=12, padding_right=12, flex=1)
-
 
 # -------- Локализация --------
 LANGS = ["en", "de", "fr", "es", "ru"]
@@ -228,14 +222,14 @@ class RowStrengthApp(toga.App):
         self._erg_init_done = False
         self.rowing_data = None
         self.strength_data_all = None
-        # Создаём ссылки на заголовки таблиц, чтобы обновлять их текст при смене языка
         self.erg_tbl1_title_label = None
         self.erg_tbl2_title_label = None
         self.bar_tbl_title_label = None
 
     # ---- Сплэш ----
     def startup(self):
-        self.main_window = toga.MainWindow(title="RowStrength", size=WINDOW_SIZE)
+        # Пустой title — чтобы на iOS/macOS не показывался лишний заголовок в навбаре
+        self.main_window = toga.MainWindow(title="", size=WINDOW_SIZE)
         for attr in ("resizeable", "resizable"):
             try:
                 setattr(self.main_window, attr, False)
@@ -293,23 +287,30 @@ class RowStrengthApp(toga.App):
         self.rowing_data = load_json_from_package("data_for_rowing_app.json")
         self.strength_data_all = load_json_from_package("data_for_strength_app.json")
 
-        # ===== Хедер на всю ширину =====
-        # Левая «пустая колонка» той же ширины, что и правая — чтобы заголовок был идеально по центру
-        left_pad = toga.Box(style=Pack(width=160))
-        self.lang_sel = toga.Selection(items=[LANG_LABEL[c] for c in LANGS],
-                                       value=LANG_LABEL[self.lang],
-                                       on_change=self._on_lang_change,
-                                       style=S_INP(160))
-        right_box = toga.Box(children=[self.lang_sel], style=Pack(width=160))
-        title_lbl = toga.Label(T["title"][self.lang],
-                               style=Pack(font_size=F_HEAD, color="#501c59",
-                                          text_align="center", padding_top=8, padding_bottom=8))
-        header = toga.Box(style=Pack(direction=ROW, background_color=CLR_HEADER_BG))
-        header.add(left_pad)
-        header.add(title_lbl)  # центр, flex у Label даст ширину = остальному пространству
-        header.add(right_box)
-        # Красивый вертикальный отступ между хедером и контентом
-        top_spacing = toga.Box(style=Pack(height=10))
+        # ===== Резиновый фиолетовый хедер =====
+        self.lang_sel = toga.Selection(
+            items=[LANG_LABEL[c] for c in LANGS],
+            value=LANG_LABEL[self.lang],
+            on_change=self._on_lang_change,
+            style=S_INP()  # ширина подбирается автоматически
+        )
+        header_col = toga.Box(style=Pack(direction=COLUMN, background_color=CLR_HEADER_BG, padding_left=8, padding_right=8, padding_top=6, padding_bottom=6))
+        # строка заголовка — строго по центру
+        title_row = toga.Box(style=Pack(direction=ROW))
+        title_row.add(toga.Box(style=Pack(flex=1)))
+        title_row.add(toga.Label(T["title"][self.lang],
+                                 style=Pack(font_size=F_HEAD, color="#501c59", text_align="center")))
+        title_row.add(toga.Box(style=Pack(flex=1)))
+        # строка языка — справа
+        lang_row = toga.Box(style=Pack(direction=ROW, padding_top=4))
+        lang_row.add(toga.Box(style=Pack(flex=1)))
+        lang_row.add(toga.Label(T["language"][self.lang], style=Pack(font_size=F_LABEL, padding_right=6)))
+        lang_row.add(self.lang_sel)
+        header_col.add(title_row)
+        header_col.add(lang_row)
+
+        # Зазор между хедером и содержимым
+        top_spacing = toga.Box(style=Pack(height=12))
 
         # ===== Вкладка Эргометр =====
         self.gender_lbl = toga.Label(T["gender"][self.lang], style=S_LBL())
@@ -349,7 +350,7 @@ class RowStrengthApp(toga.App):
             self.erg_results_holder,
         ]
         erg_col = toga.Box(children=erg_rows, style=S_COL())
-        erg_page = toga.ScrollContainer(content=erg_col, horizontal=False)
+        self.erg_page = toga.ScrollContainer(content=erg_col, horizontal=False)
 
         # ===== Вкладка Штанга =====
         self.gender_b_lbl = toga.Label(T["gender"][self.lang], style=S_LBL())
@@ -386,21 +387,32 @@ class RowStrengthApp(toga.App):
             self.bar_results_holder,
         ]
         bar_col = toga.Box(children=bar_rows, style=S_COL())
-        bar_page = toga.ScrollContainer(content=bar_col, horizontal=False)
+        self.bar_page = toga.ScrollContainer(content=bar_col, horizontal=False)
 
         # Tabs
         try:
-            self.tabs = toga.OptionContainer(content=[(T["mode_erg"][self.lang], erg_page),
-                                                      (T["mode_bar"][self.lang], bar_page)],
-                                             style=Pack(flex=1))
+            self.tabs = toga.OptionContainer(
+                content=[(T["mode_erg"][self.lang], self.erg_page),
+                         (T["mode_bar"][self.lang], self.bar_page)],
+                style=Pack(flex=1),
+            )
         except TypeError:
-            self.tabs = toga.OptionContainer(content=[(erg_page, T["mode_erg"][self.lang]),
-                                                      (bar_page, T["mode_bar"][self.lang])],
-                                             style=Pack(flex=1))
+            self.tabs = toga.OptionContainer(
+                content=[(self.erg_page, T["mode_erg"][self.lang]),
+                         (self.bar_page, T["mode_bar"][self.lang])],
+                style=Pack(flex=1),
+            )
 
+        # Обработчик смены вкладки — подправить лэйаут «Штанги», когда её впервые открывают
+        try:
+            self.tabs.on_select = self._on_tab_select
+        except Exception:
+            pass
+
+        # Корень
         root = toga.Box(style=Pack(direction=COLUMN, flex=1))
-        root.add(header)
-        root.add(top_spacing)  # увеличенный зазор под шапкой
+        root.add(header_col)
+        root.add(top_spacing)
         root.add(self.tabs)
         self.main_window.content = root
 
@@ -408,50 +420,57 @@ class RowStrengthApp(toga.App):
         self._rebuild_time_selects()
         self._erg_init_done = True
 
-        # Постфиксы для iOS/первой раскладки
+        # Фиксации раскладки (для обеих вкладок)
         self._post_build_fixups()
 
     # ---- Постфиксы ----
     def _post_build_fixups(self):
+        # Кнопки сразу во всю ширину
         try:
-            self.btn_erg.style.flex = 1
-            self.btn_bar.style.flex = 1
-            self.btn_erg.refresh()
-            self.btn_bar.refresh()
+            for b in (self.btn_erg, self.btn_bar):
+                b.style.flex = 1
+                b.style.width = None
+                b.refresh()
         except Exception:
             pass
 
-        try:
-            self._rebuild_time_selects()
-            minutes = list(self.min_sel.items) or []
-            if "06" in minutes:
-                self.min_sel.value = "06"
-                g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
-                dist = int(self.distance.value)
-                dist_data = get_distance_data(g_key, dist, self.rowing_data)
-                _, sec_map = parse_available_times(dist_data)
-                secs = sec_map.get("06", list(self.sec_sel.items) or ["00"])
-                self.sec_sel.items = secs
-                self.sec_sel.value = secs[0]
-            self.min_sel.refresh()
-            self.sec_sel.refresh()
-        except Exception:
-            pass
-
+        # Принудительная раскладка
         _force_layout_ios(self.main_window)
 
-        def _second_pass():
+        # Немного отложенных «подталкиваний» лэйаута
+        def _pass1():
             try:
                 self.main_window.content.refresh()
-                self.min_sel.refresh()
-                self.sec_sel.refresh()
-                self.btn_erg.refresh()
-                self.btn_bar.refresh()
+                self.erg_page.refresh()
+                self.bar_page.refresh()
+                for w in (self.btn_erg, self.btn_bar, self.min_sel, self.sec_sel):
+                    w.refresh()
                 _force_layout_ios(self.main_window)
             except Exception:
                 pass
 
-        asyncio.get_event_loop().call_later(0.15, _second_pass)
+        def _pass2():
+            try:
+                self.main_window.content.refresh()
+                self.erg_page.refresh()
+                self.bar_page.refresh()
+                _force_layout_ios(self.main_window)
+            except Exception:
+                pass
+
+        asyncio.get_event_loop().call_later(0.12, _pass1)
+        asyncio.get_event_loop().call_later(0.28, _pass2)
+
+    def _on_tab_select(self, widget):
+        # Когда открывают «Штангу», гарантированно растягиваем кнопку и выравниваем поля
+        try:
+            self.btn_bar.style.flex = 1
+            self.btn_bar.style.width = None
+            self.btn_bar.refresh()
+            self.bar_page.refresh()
+            _force_layout_ios(self.main_window)
+        except Exception:
+            pass
 
     # ---- Минуты/секунды ----
     def _rebuild_time_selects(self):
@@ -459,10 +478,8 @@ class RowStrengthApp(toga.App):
         dist = int(self.distance.value)
         dist_data = get_distance_data(g_key, dist, self.rowing_data)
         if not dist_data:
-            self.min_sel.items = ["00"];
-            self.min_sel.value = "00"
-            self.sec_sel.items = ["00"];
-            self.sec_sel.value = "00"
+            self.min_sel.items = ["00"]; self.min_sel.value = "00"
+            self.sec_sel.items = ["00"]; self.sec_sel.value = "00"
             return
 
         minutes, sec_map = parse_available_times(dist_data)
@@ -479,7 +496,7 @@ class RowStrengthApp(toga.App):
         self.sec_sel.items = seconds
         self.sec_sel.value = default_sec
 
-    # ---- Обновление заголовков, чтобы не «наслаивались» ----
+    # ---- Обновление существующих заголовков (без пересчёта) ----
     def _update_existing_titles(self):
         if self.erg_tbl1_title_label is not None:
             self.erg_tbl1_title_label.text = ""
@@ -505,7 +522,8 @@ class RowStrengthApp(toga.App):
 
     # ---- Handlers ----
     def _on_lang_change(self, widget):
-        if self._updating: return
+        if self._updating:
+            return
         inv = {v: k for k, v in LANG_LABEL.items()}
         self.lang = inv.get(self.lang_sel.value, "ru")
         self._apply_language_texts()
@@ -514,10 +532,11 @@ class RowStrengthApp(toga.App):
         self._post_build_fixups()
 
     def _apply_language_texts(self):
-        # Обновляем заголовки и подписи (без автопересчёта)
-        # Хедер — второй ребёнок это центральный Label
+        # Хедер (заголовок + подпись «Язык»)
         header = self.main_window.content.children[0]
-        header.children[1].text = T["title"][self.lang]
+        # header: Column -> [title_row, lang_row]; в title_row центральный Label — index 1
+        header.children[0].children[1].text = T["title"][self.lang]
+        header.children[1].children[1].text = T["language"][self.lang]
 
         # Эргометр
         self.gender_lbl.text = T["gender"][self.lang]
@@ -535,7 +554,6 @@ class RowStrengthApp(toga.App):
         self.weight_b_lbl.text = T["weight"][self.lang]
         self.gender_b.items = GENDER_LABELS[self.lang]
         self.gender_b.value = GENDER_LABELS[self.lang][1]
-
         self.ex_lbl.text = T["exercise"][self.lang]
         self.bw_lbl.text = T["bar_weight"][self.lang]
         self.reps_lbl.text = T["reps"][self.lang]
@@ -557,17 +575,20 @@ class RowStrengthApp(toga.App):
         self.exercise.value = current if current in items else items[0]
 
     def _on_gender_change(self, widget):
-        if self._updating: return
+        if self._updating:
+            return
         self._rebuild_time_selects()
         self._post_build_fixups()
 
     def _on_distance_change(self, widget):
-        if self._updating: return
+        if self._updating:
+            return
         self._rebuild_time_selects()
         self._post_build_fixups()
 
     def _on_minute_change(self, widget):
-        if self._updating: return
+        if self._updating:
+            return
         g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
         dist = int(self.distance.value)
         dist_data = get_distance_data(g_key, dist, self.rowing_data)
@@ -582,21 +603,24 @@ class RowStrengthApp(toga.App):
         try:
             bw = float(self.weight.value or 0)
             if not (40 <= bw <= 140):
-                self._info(T["err_weight"][self.lang]);
+                self._info(T["err_weight"][self.lang])
                 return
 
             g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
             dist = int(self.distance.value)
             dist_data = get_distance_data(g_key, dist, self.rowing_data)
-            if not dist_data: self._info(T["err_no_data"][self.lang]); return
+            if not dist_data:
+                self._info(T["err_no_data"][self.lang]); return
 
             t_norm = f"{self.min_sel.value}:{self.sec_sel.value}"
             dist_data_time = dist_data.get(t_norm) or dist_data.get(t_norm.lstrip("0"))
-            if not dist_data_time: self._info(T["err_time_range"][self.lang]); return
+            if not dist_data_time:
+                self._info(T["err_time_range"][self.lang]); return
 
             percent = dist_data_time.get("percent")
             strength = get_strength_data(g_key, bw, self.strength_data_all)
-            if not strength: self._info(T["err_no_strength"][self.lang]); return
+            if not strength:
+                self._info(T["err_no_strength"][self.lang]); return
 
             rows1, keys = [], [k for k in dist_data_time.keys() if k != "percent"]
             kmap = {meters_from_key(k): dist_data_time[k] for k in keys}
@@ -641,24 +665,22 @@ class RowStrengthApp(toga.App):
         try:
             bw = float(self.weight_b.value or 0)
             if not (40 <= bw <= 140):
-                self._info(T["err_weight"][self.lang]);
-                return
+                self._info(T["err_weight"][self.lang]); return
 
             bar_w = float(self.bar_weight.value or 0)
             if not (1 <= bar_w <= 700):
-                self._info(T["err_bar_weight"][self.lang]);
-                return
+                self._info(T["err_bar_weight"][self.lang]); return
 
             reps = int(self.reps.value or 0)
             if not (1 <= reps <= 30):
-                self._info(T["err_reps"][self.lang]);
-                return
+                self._info(T["err_reps"][self.lang]); return
 
             rep_max = round((bar_w / REPS_TABLE[reps]) * 100, 2)
 
             g_key = GENDER_MAP[self.lang].get(self.gender_b.value, "male")
             strength_for_user = get_strength_data(g_key, bw, self.strength_data_all)
-            if not strength_for_user: self._info(T["err_no_strength"][self.lang]); return
+            if not strength_for_user:
+                self._info(T["err_no_strength"][self.lang]); return
 
             ex_key = EX_UI_TO_KEY[self.lang][self.exercise.value]
             ex_table = strength_for_user.get(ex_key, {})
@@ -668,7 +690,8 @@ class RowStrengthApp(toga.App):
                     i_percent = float(pct_str)
                 else:
                     break
-            if i_percent is None: self._info(T["err_1rm_map"][self.lang]); return
+            if i_percent is None:
+                self._info(T["err_1rm_map"][self.lang]); return
 
             distance_data = get_distance_data(g_key, 2000, self.rowing_data)
             km2_res = None
@@ -691,9 +714,19 @@ class RowStrengthApp(toga.App):
             self.bar_results_holder.add(toga.Box(children=[self.bar_tbl_title_label], style=S_ROW()))
             self.bar_results_holder.add(make_table(rows, col_flex=[1, 1]))
 
+            # На всякий случай — растянуть кнопку после нажатия, если iOS «сжала» её
+            try:
+                self.btn_bar.style.flex = 1
+                self.btn_bar.style.width = None
+                self.btn_bar.refresh()
+                self.bar_page.refresh()
+                _force_layout_ios(self.main_window)
+            except Exception:
+                pass
+
         except Exception as e:
             self._info(str(e))
 
 
 def main():
-    return RowStrengthApp("RowStrength", "com.rowstrength")
+    return RowStrengthApp("", "com.rowstrength")

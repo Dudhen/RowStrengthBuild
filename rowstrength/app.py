@@ -115,7 +115,7 @@ T = {
     "err_bar_weight": {"en": "Bar weight must be between 1 and 700 kg.",
                        "de": "Hantelgewicht muss zwischen 1 und 700 kg liegen.",
                        "fr": "La charge doit être entre 1 et 700 kg.",
-                       "es": "El peso en barra debe estar entre 1 y 700 kg.",
+                       "es": "El peso en barra debe estar entre 1 et 700 kg.",
                        "ru": "Вес на штанге должен быть от 1 до 700"},
     "err_no_data": {"en": "No data for the selected distance/gender.",
                     "de": "Keine Daten für die gewählte Distanz/Geschlecht.",
@@ -237,7 +237,7 @@ class RowStrengthApp(toga.App):
         self.erg_tbl1_title_label = None
         self.erg_tbl2_title_label = None
         self.bar_tbl_title_label = None
-        # держим ссылки на страницы/колонки для принудительного лэйаута
+        # держим ссылки на страницы/колонки/табы
         self.erg_page = None
         self.erg_col = None
         self.bar_page = None
@@ -245,7 +245,7 @@ class RowStrengthApp(toga.App):
 
     # ---- Сплэш ----
     def startup(self):
-        self.main_window = toga.MainWindow(title="", size=WINDOW_SIZE)
+        self.main_window = toga.MainWindow(title="RowStrength", size=WINDOW_SIZE)
         for attr in ("resizeable", "resizable"):
             try:
                 setattr(self.main_window, attr, False)
@@ -298,7 +298,7 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
-    # ---- Вспомогательное: глубокий refresh поддерева ----
+    # ---- глубокий refresh поддерева ----
     def _deep_refresh(self, widget):
         try:
             widget.refresh()
@@ -312,10 +312,84 @@ class RowStrengthApp(toga.App):
             for ch in list(children):
                 self._deep_refresh(ch)
 
-    def _refresh_bar_layout(self):
-        # Пингуем всю вкладку «Штанга» и форсим нативный ре-лейаут
-        if self.bar_page is not None:
-            self._deep_refresh(self.bar_page)
+    # ---- работа с табами (совместимо с разными API toga 0.4.4) ----
+    def _tab_items(self):
+        try:
+            return list(self.tabs.content)
+        except Exception:
+            return []
+
+    def _current_tab_item(self):
+        try:
+            return self.tabs.current_tab
+        except Exception:
+            return None
+
+    def _current_tab_index(self):
+        items = self._tab_items()
+        cur = self._current_tab_item()
+        try:
+            if cur is not None:
+                return items.index(cur)
+        except Exception:
+            pass
+        # fallback: предположим 0
+        return 0
+
+    def _select_tab_index(self, idx: int):
+        items = self._tab_items()
+        try:
+            self.tabs.current_tab = items[idx]
+            return
+        except Exception:
+            pass
+        try:
+            # иногда работает такое поле
+            self.tabs.current_tab_index = idx  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+    # ---- прогрев лэйаута «Штанги» через автоклик Calculate ----
+    def _prime_bar_layout_then_clear(self):
+        # запомним исходную вкладку
+        orig_idx = self._current_tab_index()
+        try:
+            # переключаемся на «Штангу» (обычно индекс 1)
+            self._select_tab_index(1)
+            # даём UI один тик
+            _force_layout_ios(self.main_window)
+            self._deep_refresh(self.bar_page or self.main_window.content)
+
+            # жмём «Рассчитать» программно
+            self.calculate_bar(None)
+
+            # форсим лэйаут после построения таблиц
+            self._deep_refresh(self.bar_page or self.main_window.content)
+            _force_layout_ios(self.main_window)
+
+            # очищаем результаты сразу после прогрева
+            self._clear_all_results()
+
+        finally:
+            # возвращаемся на исходную вкладку
+            self._select_tab_index(orig_idx)
+            _force_layout_ios(self.main_window)
+
+    # ---- Полная очистка результатов и ссылок на заголовки (обе вкладки) ----
+    def _clear_all_results(self):
+        try:
+            self.erg_results_holder.children.clear()
+            self.bar_results_holder.children.clear()
+        except Exception:
+            pass
+        self.erg_tbl1_title_label = None
+        self.erg_tbl2_title_label = None
+        self.bar_tbl_title_label = None
+        try:
+            self.erg_results_holder.refresh()
+            self.bar_results_holder.refresh()
+        except Exception:
+            pass
         _force_layout_ios(self.main_window)
 
     # ---- Основной UI ----
@@ -360,7 +434,6 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
-        # Контейнер результатов Эргометра (пустой до нажатия)
         self.erg_results_holder = toga.Box(style=S_COL())
 
         erg_rows = [
@@ -413,13 +486,12 @@ class RowStrengthApp(toga.App):
         self.bar_col = toga.Box(children=bar_rows, style=Pack(direction=COLUMN, flex=1))
         self.bar_page = toga.ScrollContainer(content=self.bar_col, horizontal=False, style=Pack(flex=1))
 
-        # Tabs + обработчик переключения
+        # Tabs (без особых обработчиков — нам хватит ручного прогрева)
         try:
             self.tabs = toga.OptionContainer(
                 content=[(T["mode_erg"][self.lang], self.erg_page),
                          (T["mode_bar"][self.lang], self.bar_page)],
-                style=Pack(flex=1),
-                on_select=self._on_tab_change  # <---- важный обработчик
+                style=Pack(flex=1)
             )
         except TypeError:
             self.tabs = toga.OptionContainer(
@@ -427,11 +499,6 @@ class RowStrengthApp(toga.App):
                          (self.bar_page, T["mode_bar"][self.lang])],
                 style=Pack(flex=1)
             )
-            # Для старого сигнатурного варианта — навешиваем колбэк отдельно
-            try:
-                self.tabs.on_select = self._on_tab_change
-            except Exception:
-                pass
 
         root = toga.Box(style=Pack(direction=COLUMN, flex=1))
         root.add(header)
@@ -442,31 +509,10 @@ class RowStrengthApp(toga.App):
         self._rebuild_time_selects()
         self._erg_init_done = True
 
-        # Пост-фиксации для iOS/первой отрисовки
+        # Пост-фиксации и автопрогрев раскладки «Штанги»
         self._post_build_fixups()
-
-    # ---- Реакция на переключение вкладки ----
-    def _on_tab_change(self, widget, option=None):
-        # Когда пользователь впервые открывает «Штангу», форсим лэйаут прямо сейчас
-        try:
-            selected_content = None
-            if option is not None and hasattr(option, "content"):
-                selected_content = option.content
-            else:
-                # запасной путь для разных реализаций toga
-                selected_content = getattr(widget, "current_tab", None)
-            if selected_content is self.bar_page or selected_content == self.bar_page:
-                # Микро-триггер инвалидации стилей + глубокий refresh
-                try:
-                    orig = self.bar_col.style.padding_top or 0
-                    self.bar_col.style.padding_top = orig + 0.01
-                    self.bar_col.style.padding_top = orig
-                except Exception:
-                    pass
-                self._refresh_bar_layout()
-        except Exception:
-            # В любом случае попробуем «пнуть» верстку
-            self._refresh_bar_layout()
+        # Очень короткая задержка, затем «автоклик» Calculate на «Штанге» и очистка
+        asyncio.get_event_loop().call_later(0.05, self._prime_bar_layout_then_clear)
 
     # ---- Пост-фиксации для iOS и первой раскладки ----
     def _post_build_fixups(self):
@@ -493,27 +539,15 @@ class RowStrengthApp(toga.App):
                 self.sec_sel.items = secs
                 self.sec_sel.value = secs[0]
 
-            # Глубокий refresh обеих страниц
             if self.erg_page is not None:
                 self._deep_refresh(self.erg_page)
-            # заранее «прогреем» лэйаут «Штанги»
-            self._refresh_bar_layout()
+            if self.bar_page is not None:
+                self._deep_refresh(self.bar_page)
+
         except Exception:
             pass
 
         _force_layout_ios(self.main_window)
-
-        def _second_pass():
-            try:
-                self.main_window.content.refresh()
-                if self.erg_page is not None:
-                    self._deep_refresh(self.erg_page)
-                self._refresh_bar_layout()
-                _force_layout_ios(self.main_window)
-            except Exception:
-                pass
-
-        asyncio.get_event_loop().call_later(0.15, _second_pass)
 
     # ---- Минуты/секунды ----
     def _rebuild_time_selects(self):
@@ -541,7 +575,6 @@ class RowStrengthApp(toga.App):
 
     # ---- Обновление существующих заголовков (без пересчёта) ----
     def _update_existing_titles(self):
-        # Эргометр
         if self.erg_tbl1_title_label is not None:
             self.erg_tbl1_title_label.text = T["erg_tbl1_title"][self.lang]
             try: self.erg_tbl1_title_label.refresh()
@@ -554,12 +587,10 @@ class RowStrengthApp(toga.App):
             self.erg_tbl2_title_label.text = T["erg_tbl2_title"][self.lang].format(w=w)
             try: self.erg_tbl2_title_label.refresh()
             except Exception: pass
-        # Штанга
         if self.bar_tbl_title_label is not None:
             self.bar_tbl_title_label.text = T["bar_tbl_title"][self.lang]
             try: self.bar_tbl_title_label.refresh()
             except Exception: pass
-
         _force_layout_ios(self.main_window)
 
     # ---- Handlers ----
@@ -571,24 +602,14 @@ class RowStrengthApp(toga.App):
         self._apply_language_texts()
         self._rebuild_time_selects()
 
-        # Гарантированно избегаем «наслаивания» заголовков:
-        self.erg_results_holder.children.clear()
-        self.bar_results_holder.children.clear()
-        self.erg_tbl1_title_label = None
-        self.erg_tbl2_title_label = None
-        self.bar_tbl_title_label = None
-        try:
-            self.erg_results_holder.refresh()
-            self.bar_results_holder.refresh()
-        except Exception:
-            pass
+        # По твоему требованию: при смене языка убираем все таблицы с заголовками
+        self._clear_all_results()
 
-        # Обновляем уже существующие заголовки (если где-то остались ссылки)
+        # На всякий — обновим заголовки, если позже что-то пересчитается
         self._update_existing_titles()
 
-        # И пинаем лэйаут «Штанги», т.к. смена языка может влиять на размеры
-        self._refresh_bar_layout()
-        self._post_build_fixups()
+        # Небольшой пинок лэйауту
+        _force_layout_ios(self.main_window)
 
     def _apply_language_texts(self):
         header = self.main_window.content.children[0]
@@ -635,12 +656,12 @@ class RowStrengthApp(toga.App):
     def _on_gender_change(self, widget):
         if self._updating: return
         self._rebuild_time_selects()
-        self._post_build_fixups()
+        _force_layout_ios(self.main_window)
 
     def _on_distance_change(self, widget):
         if self._updating: return
         self._rebuild_time_selects()
-        self._post_build_fixups()
+        _force_layout_ios(self.main_window)
 
     def _on_minute_change(self, widget):
         if self._updating: return
@@ -673,7 +694,6 @@ class RowStrengthApp(toga.App):
             strength = get_strength_data(g_key, bw, self.strength_data_all)
             if not strength: self._info(T["err_no_strength"][self.lang]); return
 
-            # Таблица 1 (7x3)
             rows1, keys = [], [k for k in dist_data_time.keys() if k != "percent"]
             kmap = {meters_from_key(k): dist_data_time[k] for k in keys}
             for m in SHOW_DISTANCES:
@@ -681,7 +701,6 @@ class RowStrengthApp(toga.App):
                     t = kmap[m]
                     rows1.append([f"{m} m", f"{t}.00", get_split_500m(m, t)])
 
-            # Таблица 2 (3x2)
             rows2, labels = [], EX_KEY_TO_LABEL[self.lang]
             for ex_key, ui_label in labels.items():
                 kilo = strength.get(ex_key, {}).get(percent)
@@ -760,9 +779,6 @@ class RowStrengthApp(toga.App):
             )
             self.bar_results_holder.add(toga.Box(children=[self.bar_tbl_title_label], style=S_ROW()))
             self.bar_results_holder.add(make_table(rows, col_flex=[1, 1]))
-
-            # «Пнуть» верстку вкладки после построения таблицы
-            self._refresh_bar_layout()
 
         except Exception as e:
             self._info(str(e))

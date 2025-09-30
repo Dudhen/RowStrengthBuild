@@ -446,7 +446,7 @@ class RowStrengthApp(toga.App):
             "RowStrength by Dudhen",
             style=Pack(font_size=F_HEAD, color="#501c59", text_align="center", padding_top=8, padding_bottom=4)
         )
-        top_row = toga.Box(style=Pack(direction=ROW))
+        top_row = toga.Box(style=Pack(direction=ROW, padding_top=4, padding_bottom=4))
         top_row.add(toga.Box(style=Pack(flex=1)))
         top_row.add(self.header_dev_label)
         top_row.add(toga.Box(style=Pack(flex=1)))
@@ -462,7 +462,7 @@ class RowStrengthApp(toga.App):
             T["language"][self.lang],
             style=Pack(font_size=F_LABEL, padding_left=8, padding_right=6)
         )
-        lang_row = toga.Box(style=Pack(direction=ROW, padding_bottom=2))
+        lang_row = toga.Box(style=Pack(direction=ROW, padding_top=2, padding_bottom=6))
         lang_row.add(toga.Box(style=Pack(flex=1)))  # заполнитель слева — сдвигаем вправо
         lang_row.add(self.header_lang_label)
         lang_row.add(self.lang_sel)
@@ -472,10 +472,10 @@ class RowStrengthApp(toga.App):
             style=Pack(
                 direction=COLUMN,
                 background_color=CLR_HEADER_BG,
-                padding_left=0,   # важно: без зазора слева
+                padding_left=0,  # без зазора слева
                 padding_right=0,
-                # padding_top=4,
-                # padding_bottom=4
+                padding_top=8,  # добавили верхний паддинг
+                padding_bottom=10  # и нижний паддинг
             )
         )
         header.add(top_row)

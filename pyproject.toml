@@ -2,6 +2,14 @@
 name = "RowStrength by Dudhen"
 version = "1.0.0"
 
+[tool.poetry.dependencies]
+python = ">=3.10,<3.11"
+toga-cocoa = "0.4.4"
+std-nslog = "1.0.0"
+toga-winforms = "0.4.4"
+toga-ios = "0.4.4"
+rubicon-objc = "0.4.7"
+
 [tool.briefcase]
 project_name = "RowStrength by Dudhen"
 bundle = "com.rowstrength"

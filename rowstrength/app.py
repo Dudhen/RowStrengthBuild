@@ -33,16 +33,26 @@ CLR_ACCENT = "#6A5ACD"
 
 
 def S_MAIN():  return Pack(direction=COLUMN, padding=PAD_MAIN, flex=1)
+
+
 def S_ROW():   return Pack(direction=ROW, padding_bottom=6)
+
+
 def S_COL():   return Pack(direction=COLUMN)
+
+
 def S_HEAD():  return Pack(font_size=F_HEAD, padding_bottom=6)
+
+
 def S_LBL():   return Pack(font_size=F_LABEL, padding_right=8, flex=1)
+
 
 def S_INP(w=None):
     kw = dict(font_size=F_INPUT, padding_right=10)
     if w is not None:
         kw["width"] = w
     return Pack(**kw)
+
 
 def S_BTN():   return Pack(padding_top=10, padding_bottom=10, padding_left=12, padding_right=12, flex=1)
 
@@ -418,14 +428,17 @@ class RowStrengthApp(toga.App):
             _force_layout_ios(self.main_window)
             self._deep_refresh(self.bar_page or self.main_window.content)
             self.calculate_bar(None)
+
             def _do_clear():
                 self._clear_results_holder("bar")
                 self._nudge_scrollcontainers()
+
             asyncio.get_event_loop().call_later(0.02, _do_clear)
         finally:
             def _restore_tab():
                 self._select_tab_index(orig_idx)
                 _force_layout_ios(self.main_window)
+
             asyncio.get_event_loop().call_later(0.04, _restore_tab)
 
     # ---- Основной UI ----
@@ -621,8 +634,10 @@ class RowStrengthApp(toga.App):
         dist = int(self.distance.value)
         dist_data = get_distance_data(g_key, dist, self.rowing_data)
         if not dist_data:
-            self.min_sel.items = ["00"]; self.min_sel.value = "00"
-            self.sec_sel.items = ["00"]; self.sec_sel.value = "00"
+            self.min_sel.items = ["00"];
+            self.min_sel.value = "00"
+            self.sec_sel.items = ["00"];
+            self.sec_sel.value = "00"
             return
 
         minutes, sec_map = parse_available_times(dist_data)
@@ -643,20 +658,26 @@ class RowStrengthApp(toga.App):
     def _update_existing_titles(self):
         if self.erg_tbl1_title_label is not None:
             self.erg_tbl1_title_label.text = T["erg_tbl1_title"][self.lang]
-            try: self.erg_tbl1_title_label.refresh()
-            except Exception: pass
+            try:
+                self.erg_tbl1_title_label.refresh()
+            except Exception:
+                pass
         if self.erg_tbl2_title_label is not None:
             try:
                 w = int(float(self.weight.value or 0))
             except Exception:
                 w = 0
             self.erg_tbl2_title_label.text = T["erg_tbl2_title"][self.lang].format(w=w)
-            try: self.erg_tbl2_title_label.refresh()
-            except Exception: pass
+            try:
+                self.erg_tbl2_title_label.refresh()
+            except Exception:
+                pass
         if self.bar_tbl_title_label is not None:
             self.bar_tbl_title_label.text = T["bar_tbl_title"][self.lang]
-            try: self.bar_tbl_title_label.refresh()
-            except Exception: pass
+            try:
+                self.bar_tbl_title_label.refresh()
+            except Exception:
+                pass
         _force_layout_ios(self.main_window)
 
     # ---- Handlers ----
@@ -683,6 +704,7 @@ class RowStrengthApp(toga.App):
             self._clear_all_results()
             self._nudge_scrollcontainers()
             self._update_existing_titles()
+
         asyncio.get_event_loop().call_later(0.015, _second_pass)
 
         # Финальный рефреш
@@ -756,7 +778,8 @@ class RowStrengthApp(toga.App):
         try:
             bw = float(self.weight.value or 0)
             if not (40 <= bw <= 140):
-                self._info(T["err_weight"][self.lang]); return
+                self._info(T["err_weight"][self.lang]);
+                return
 
             g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
             dist = int(self.distance.value)
@@ -810,15 +833,18 @@ class RowStrengthApp(toga.App):
         try:
             bw = float(self.weight_b.value or 0)
             if not (40 <= bw <= 140):
-                self._info(T["err_weight"][self.lang]); return
+                self._info(T["err_weight"][self.lang]);
+                return
 
             bar_w = float(self.bar_weight.value or 0)
             if not (1 <= bar_w <= 700):
-                self._info(T["err_bar_weight"][self.lang]); return
+                self._info(T["err_bar_weight"][self.lang]);
+                return
 
             reps = int(self.reps.value or 0)
             if not (1 <= reps <= 30):
-                self._info(T["err_reps"][self.lang]); return
+                self._info(T["err_reps"][self.lang]);
+                return
 
             rep_max = round((bar_w / REPS_TABLE[reps]) * 100, 2)
 

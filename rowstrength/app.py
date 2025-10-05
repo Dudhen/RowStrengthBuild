@@ -81,7 +81,7 @@ T = {
     },
     "erg_tbl2_title": {
         "en": "Barbell equivalents (bodyweight {w} kg)",
-        "de": "Hantel-Äquivalente (Körpergewicht {w} kg)",
+        "de": " " if False else "Hantel-Äquivalente (Körpergewicht {w} kg)",
         "fr": "Équivalents barre (poids du corps {w} kg)",
         "es": "Equivalentes con barra (peso corporal {w} kg)",
         "ru": "Эквивалент в штанге с весом {w} кг",
@@ -358,13 +358,11 @@ class RowStrengthApp(toga.App):
         if holder is None:
             return
         try:
-            # Удаляем детей один за другим через API remove (надёжнее для iOS)
             for ch in list(getattr(holder, "children", []) or []):
                 try:
                     holder.remove(ch)
                 except Exception:
                     pass
-            # На всякий случай, если remove недоступен — чистим список детей
             try:
                 holder.children.clear()
             except Exception:
@@ -377,7 +375,6 @@ class RowStrengthApp(toga.App):
             pass
 
     def _clear_results_holder(self, which: str):
-        # вместо замены бокса — чистим его содержимое
         if which == "erg":
             self._really_clear_holder_children(getattr(self, "erg_results_holder", None))
             self.erg_tbl1_title_label = None
@@ -385,8 +382,6 @@ class RowStrengthApp(toga.App):
         else:
             self._really_clear_holder_children(getattr(self, "bar_results_holder", None))
             self.bar_tbl_title_label = None
-
-        # форсим лэйаут
         try:
             self._deep_refresh(self.main_window.content)
             _force_layout_ios(self.main_window)
@@ -396,6 +391,24 @@ class RowStrengthApp(toga.App):
     def _clear_all_results(self):
         self._clear_results_holder("erg")
         self._clear_results_holder("bar")
+
+    # ---- дополнительный «нудж» для iOS: переустановка контента ScrollContainer ----
+    def _nudge_scrollcontainers(self):
+        for page in (self.erg_page, self.bar_page):
+            if page is None:
+                continue
+            try:
+                old = page.content
+                dummy = toga.Box(style=Pack())  # временный контейнер
+                page.content = dummy
+                page.content = old
+            except Exception:
+                pass
+        try:
+            self._deep_refresh(self.main_window.content)
+            _force_layout_ios(self.main_window)
+        except Exception:
+            pass
 
     # ---- прогрев лэйаута «Штанги» через автоклик Calculate, затем очистка ----
     def _prime_bar_layout_then_clear(self):
@@ -407,8 +420,7 @@ class RowStrengthApp(toga.App):
             self.calculate_bar(None)
             def _do_clear():
                 self._clear_results_holder("bar")
-                self._deep_refresh(self.bar_page or self.main_window.content)
-                _force_layout_ios(self.main_window)
+                self._nudge_scrollcontainers()
             asyncio.get_event_loop().call_later(0.02, _do_clear)
         finally:
             def _restore_tab():
@@ -651,25 +663,33 @@ class RowStrengthApp(toga.App):
     def _on_lang_change(self, widget):
         if self._updating:
             return
+
+        # 1) На iOS сперва убираем фокус с инпутов/клаву
+        self._dismiss_ios_inputs()
+
+        # 2) Меняем язык/лейблы/доступные минуты/секунды
         inv = {v: k for k, v in LANG_LABEL.items()}
         self.lang = inv.get(self.lang_sel.value, "ru")
         self._apply_language_texts()
         self._rebuild_time_selects()
 
-        # Всегда очищаем все рассчитанные результаты
+        # 3) Жёстко чистим результаты
         self._clear_all_results()
-        # И ещё раз через микрозадержку — на случай гонок перерисовки iOS
-        asyncio.get_event_loop().call_later(0.01, self._clear_all_results)
+        # 4) И обязательно «пнул» ScrollContainer, чтобы iOS отбросил старые сабвью
+        self._nudge_scrollcontainers()
 
-        # На всякий случай обновим заголовки, если позже что-то пересчитается
-        self._update_existing_titles()
+        # 5) Через микрозадержку повторяем (страховка от гонок перерисовки)
+        def _second_pass():
+            self._clear_all_results()
+            self._nudge_scrollcontainers()
+            self._update_existing_titles()
+        asyncio.get_event_loop().call_later(0.015, _second_pass)
 
-        # Пинок лэйауту
+        # Финальный рефреш
         self._deep_refresh(self.main_window.content)
         _force_layout_ios(self.main_window)
 
     def _apply_language_texts(self):
-        # Обновляем только текст метки языка в шапке и подписи форм
         if self.header_lang_label is not None:
             self.header_lang_label.text = T["language"][self.lang]
 

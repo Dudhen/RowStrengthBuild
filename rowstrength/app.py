@@ -786,8 +786,17 @@ class RowStrengthApp(toga.App):
             dist_data = get_distance_data(g_key, dist, self.rowing_data)
             if not dist_data: self._info(T["err_no_data"][self.lang]); return
 
-            t_norm = f"{self.min_sel.value}:{self.sec_sel.value}"
-            dist_data_time = dist_data.get(t_norm) or dist_data.get(t_norm.lstrip("0"))
+            t_norm = (
+                f"{self.min_sel.value}:{self.sec_sel.value}.{self.cen_sel.value}"
+                if str(self.cen_sel.value) not in ("0", "00")
+                else f"{self.min_sel.value}:{self.sec_sel.value}"
+            )
+            dist_data_time = (
+                    dist_data.get(t_norm)
+                    or dist_data.get(t_norm.lstrip("0"))
+                    or dist_data.get(f"{self.min_sel.value}:{self.sec_sel.value}")
+                    or dist_data.get(f"{self.min_sel.value}:{self.sec_sel.value}".lstrip("0"))
+            )
             if not dist_data_time: self._info(T["err_time_range"][self.lang]); return
 
             percent = dist_data_time.get("percent")

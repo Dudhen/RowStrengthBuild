@@ -799,7 +799,7 @@ class RowStrengthApp(toga.App):
             for m in SHOW_DISTANCES:
                 if m in kmap:
                     t = kmap[m]
-                    rows1.append([f"{m} m", f"{t}.00", get_split_500m(m, t)])
+                    rows1.append([f"{m} m", f"{t}", get_split_500m(m, t)])
 
             rows2, labels = [], EX_KEY_TO_LABEL[self.lang]
             for ex_key, ui_label in labels.items():

@@ -450,13 +450,7 @@ class RowStrengthApp(toga.App):
         # Строка 1: по центру "Dev by Dudhen"
         self.header_dev_label = toga.Label(
             "RowStrength by Dudhen",
-            style=Pack(
-                font_family="Snell Roundhand",
-                font_size=F_HEAD + 4,
-                color="#501c59",
-                text_align="center",
-                padding_top=8, padding_bottom=4
-            )
+            style=Pack(font_size=F_HEAD, color="#501c59", text_align="center", padding_top=8, padding_bottom=4)
         )
         top_row = toga.Box(style=Pack(direction=ROW, padding_top=6, padding_bottom=4, background_color=CLR_HEADER_BG))
         top_row.add(toga.Box(style=Pack(flex=1)))

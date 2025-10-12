@@ -25,6 +25,7 @@ F_LABEL = 16 if IS_IOS else 14
 F_INPUT = 16 if IS_IOS else 14
 PAD_MAIN = 16 if IS_IOS else 14
 INP_W = 200
+INP_RADIUS = 10
 
 CLR_HEADER_BG = "#D9CCFF"
 CLR_TABLE_BG = "#EDE7FF"
@@ -33,7 +34,7 @@ CLR_BTN_FG = "#2B1C7A"
 CLR_ACCENT = "#6A5ACD"
 
 INP_BORDER_PX = 1
-CLR_INPUT_BORDER = CLR_ACCENT
+CLR_INPUT_BORDER = CLR_HEADER_BG
 CLR_INPUT_BG = "#FFFFFF"
 
 
@@ -72,6 +73,7 @@ def wrap_input(widget):
             background_color=CLR_INPUT_BORDER
         )
     )
+    outer._rounded = True
     # Внутренняя белая подложка
     inner = toga.Box(
         style=Pack(
@@ -447,6 +449,66 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
+    def _apply_rounded_corners(self, root=None, radius=INP_RADIUS):
+        """
+        Скругляет углы у всех Box, помеченных _rounded=True, на iOS/macOS.
+        На Windows делает ничего (нет кроссплатформенного API).
+        """
+        if sys.platform not in ("ios", "darwin"):
+            return
+
+        root = root or getattr(self.main_window, "content", None)
+        if root is None:
+            return
+
+        def _round_native(view):
+            try:
+                native = view._impl.native
+                # macOS: включаем слой
+                if sys.platform == "darwin":
+                    try:
+                        native.setWantsLayer_(True)
+                    except Exception:
+                        try:
+                            native.wantsLayer = True
+                        except Exception:
+                            pass
+                layer = getattr(native, "layer", None)
+                if callable(layer):
+                    layer = layer()
+                if layer is not None:
+                    try:
+                        layer.masksToBounds = True
+                    except Exception:
+                        try:
+                            layer.setMasksToBounds_(True)
+                        except Exception:
+                            pass
+                    try:
+                        layer.cornerRadius = radius
+                    except Exception:
+                        try:
+                            layer.setCornerRadius_(radius)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+        def _walk(w):
+            try:
+                if getattr(w, "_rounded", False):
+                    _round_native(w)
+            except Exception:
+                pass
+            # внутрь content (для ScrollContainer) и детей
+            cont = getattr(w, "content", None)
+            if cont is not None:
+                _walk(cont)
+            for ch in getattr(w, "children", []) or []:
+                _walk(ch)
+
+        _walk(root)
+
     # ---- прогрев лэйаута «Штанги» через автоклик Calculate, затем очистка ----
     def _prime_bar_layout_then_clear(self):
         orig_idx = self._current_tab_index()
@@ -654,6 +716,7 @@ class RowStrengthApp(toga.App):
             pass
 
         _force_layout_ios(self.main_window)
+        self._apply_rounded_corners()
 
     # ---- Минуты/секунды ----
     def _rebuild_time_selects(self):
@@ -726,11 +789,14 @@ class RowStrengthApp(toga.App):
         # 4) И обязательно «пнул» ScrollContainer, чтобы iOS отбросил старые сабвью
         self._nudge_scrollcontainers()
 
+        self._apply_rounded_corners()
+
         # 5) Через микрозадержку повторяем (страховка от гонок перерисовки)
         def _second_pass():
             self._clear_all_results()
             self._nudge_scrollcontainers()
             self._update_existing_titles()
+            self._apply_rounded_corners()
 
         asyncio.get_event_loop().call_later(0.015, _second_pass)
 

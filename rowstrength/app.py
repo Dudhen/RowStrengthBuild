@@ -48,8 +48,12 @@ def S_HEAD():  return Pack(font_size=F_HEAD, padding_bottom=6)
 def S_LBL():   return Pack(font_size=F_LABEL, padding_right=8, flex=1)
 
 
-def S_INP(w=None):
-    # Игнорируем переданную ширину и применяем единую ширину для всех полей
+def S_INP(w=None, is_lang=None):
+    if is_lang:
+        kw = dict(font_size=F_INPUT, padding_right=10)
+        if w is not None:
+            kw["width"] = w
+        return Pack(**kw)
     return Pack(font_size=F_INPUT, padding_right=10, width=INP_W)
 
 
@@ -461,7 +465,7 @@ class RowStrengthApp(toga.App):
             items=[LANG_LABEL[c] for c in LANGS],
             value=LANG_LABEL[self.lang],
             on_change=self._on_lang_change,
-            style=S_INP()
+            style=S_INP(is_lang=True)
         )
         self.header_lang_label = toga.Label(
             T["language"][self.lang],

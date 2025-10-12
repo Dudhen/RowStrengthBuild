@@ -693,7 +693,7 @@ class RowStrengthApp(toga.App):
 
         # 2) Меняем язык/лейблы/доступные минуты/секунды
         inv = {v: k for k, v in LANG_LABEL.items()}
-        self.lang = inv.get(self.lang_sel.value, "ru")
+        self.lang = inv.get(self.lang_sel.value, "en")
         self._apply_language_texts()
         self._rebuild_time_selects()
 

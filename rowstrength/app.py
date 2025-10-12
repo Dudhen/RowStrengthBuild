@@ -25,17 +25,12 @@ F_LABEL = 16 if IS_IOS else 14
 F_INPUT = 16 if IS_IOS else 14
 PAD_MAIN = 16 if IS_IOS else 14
 INP_W = 200
-INP_RADIUS = 10
 
 CLR_HEADER_BG = "#D9CCFF"
 CLR_TABLE_BG = "#EDE7FF"
 CLR_BTN_BG = "#D9CCFF"
 CLR_BTN_FG = "#2B1C7A"
 CLR_ACCENT = "#6A5ACD"
-
-INP_BORDER_PX = 1
-CLR_INPUT_BORDER = CLR_HEADER_BG
-CLR_INPUT_BG = "#FFFFFF"
 
 
 def S_MAIN():  return Pack(direction=COLUMN, padding=PAD_MAIN, flex=1)
@@ -63,27 +58,6 @@ def S_INP(w=None, is_lang=None):
 
 
 def S_BTN():   return Pack(padding_top=10, padding_bottom=10, padding_left=12, padding_right=12, flex=1)
-
-
-def wrap_input(widget):
-    # Внешняя "рамка" фиолетовая
-    outer = toga.Box(
-        style=Pack(
-            padding=INP_BORDER_PX,
-            background_color=CLR_INPUT_BORDER
-        )
-    )
-    outer._rounded = True
-    # Внутренняя белая подложка
-    inner = toga.Box(
-        style=Pack(
-            padding_left=6, padding_right=6, padding_top=4, padding_bottom=4,
-            background_color=CLR_INPUT_BG
-        )
-    )
-    inner.add(widget)
-    outer.add(inner)
-    return outer
 
 
 # -------- Локализация --------
@@ -449,66 +423,6 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
-    def _apply_rounded_corners(self, root=None, radius=INP_RADIUS):
-        """
-        Скругляет углы у всех Box, помеченных _rounded=True, на iOS/macOS.
-        На Windows делает ничего (нет кроссплатформенного API).
-        """
-        if sys.platform not in ("ios", "darwin"):
-            return
-
-        root = root or getattr(self.main_window, "content", None)
-        if root is None:
-            return
-
-        def _round_native(view):
-            try:
-                native = view._impl.native
-                # macOS: включаем слой
-                if sys.platform == "darwin":
-                    try:
-                        native.setWantsLayer_(True)
-                    except Exception:
-                        try:
-                            native.wantsLayer = True
-                        except Exception:
-                            pass
-                layer = getattr(native, "layer", None)
-                if callable(layer):
-                    layer = layer()
-                if layer is not None:
-                    try:
-                        layer.masksToBounds = True
-                    except Exception:
-                        try:
-                            layer.setMasksToBounds_(True)
-                        except Exception:
-                            pass
-                    try:
-                        layer.cornerRadius = radius
-                    except Exception:
-                        try:
-                            layer.setCornerRadius_(radius)
-                        except Exception:
-                            pass
-            except Exception:
-                pass
-
-        def _walk(w):
-            try:
-                if getattr(w, "_rounded", False):
-                    _round_native(w)
-            except Exception:
-                pass
-            # внутрь content (для ScrollContainer) и детей
-            cont = getattr(w, "content", None)
-            if cont is not None:
-                _walk(cont)
-            for ch in getattr(w, "children", []) or []:
-                _walk(ch)
-
-        _walk(root)
-
     # ---- прогрев лэйаута «Штанги» через автоклик Calculate, затем очистка ----
     def _prime_bar_layout_then_clear(self):
         orig_idx = self._current_tab_index()
@@ -560,7 +474,7 @@ class RowStrengthApp(toga.App):
         lang_row = toga.Box(style=Pack(direction=ROW, padding_top=2, padding_bottom=6, background_color=CLR_HEADER_BG))
         lang_row.add(toga.Box(style=Pack(flex=1)))
         lang_row.add(self.header_lang_label)
-        lang_row.add(wrap_input(self.lang_sel))
+        lang_row.add(self.lang_sel)
 
         header = toga.Box(
             style=Pack(
@@ -603,12 +517,12 @@ class RowStrengthApp(toga.App):
         self.erg_results_holder = toga.Box(style=S_COL())
 
         erg_rows = [
-            toga.Box(children=[self.gender_lbl, wrap_input(self.gender)], style=S_ROW()),
-            toga.Box(children=[self.weight_lbl, wrap_input(self.weight)], style=S_ROW()),
-            toga.Box(children=[self.distance_lbl, wrap_input(self.distance)], style=S_ROW()),
-            toga.Box(children=[self.min_lbl, wrap_input(self.min_sel)], style=S_ROW()),
-            toga.Box(children=[self.sec_lbl, wrap_input(self.sec_sel)], style=S_ROW()),
-            toga.Box(children=[self.cen_lbl, wrap_input(self.cen_sel)], style=S_ROW()),
+            toga.Box(children=[self.gender_lbl, self.gender], style=S_ROW()),
+            toga.Box(children=[self.weight_lbl, self.weight], style=S_ROW()),
+            toga.Box(children=[self.distance_lbl, self.distance], style=S_ROW()),
+            toga.Box(children=[self.min_lbl, self.min_sel], style=S_ROW()),
+            toga.Box(children=[self.sec_lbl, self.sec_sel], style=S_ROW()),
+            toga.Box(children=[self.cen_lbl, self.cen_sel], style=S_ROW()),
             toga.Box(children=[self.btn_erg], style=S_ROW()),
             self.erg_results_holder,
         ]
@@ -641,11 +555,11 @@ class RowStrengthApp(toga.App):
         self.bar_results_holder = toga.Box(style=S_COL())
 
         bar_rows = [
-            toga.Box(children=[self.gender_b_lbl, wrap_input(self.gender_b)], style=S_ROW()),
-            toga.Box(children=[self.weight_b_lbl, wrap_input(self.weight_b)], style=S_ROW()),
-            toga.Box(children=[self.ex_lbl, wrap_input(self.exercise)], style=S_ROW()),
-            toga.Box(children=[self.bw_lbl, wrap_input(self.bar_weight)], style=S_ROW()),
-            toga.Box(children=[self.reps_lbl, wrap_input(self.reps)], style=S_ROW()),
+            toga.Box(children=[self.gender_b_lbl, self.gender_b], style=S_ROW()),
+            toga.Box(children=[self.weight_b_lbl, self.weight_b], style=S_ROW()),
+            toga.Box(children=[self.ex_lbl, self.exercise], style=S_ROW()),
+            toga.Box(children=[self.bw_lbl, self.bar_weight], style=S_ROW()),
+            toga.Box(children=[self.reps_lbl, self.reps], style=S_ROW()),
             toga.Box(children=[self.btn_bar], style=S_ROW()),
             self.bar_results_holder,
         ]
@@ -716,7 +630,6 @@ class RowStrengthApp(toga.App):
             pass
 
         _force_layout_ios(self.main_window)
-        self._apply_rounded_corners()
 
     # ---- Минуты/секунды ----
     def _rebuild_time_selects(self):
@@ -789,14 +702,11 @@ class RowStrengthApp(toga.App):
         # 4) И обязательно «пнул» ScrollContainer, чтобы iOS отбросил старые сабвью
         self._nudge_scrollcontainers()
 
-        self._apply_rounded_corners()
-
         # 5) Через микрозадержку повторяем (страховка от гонок перерисовки)
         def _second_pass():
             self._clear_all_results()
             self._nudge_scrollcontainers()
             self._update_existing_titles()
-            self._apply_rounded_corners()
 
         asyncio.get_event_loop().call_later(0.015, _second_pass)
 

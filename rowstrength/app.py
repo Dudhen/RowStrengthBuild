@@ -24,6 +24,7 @@ F_HEAD = 22 if IS_IOS else 18
 F_LABEL = 16 if IS_IOS else 14
 F_INPUT = 16 if IS_IOS else 14
 PAD_MAIN = 16 if IS_IOS else 14
+INP_W = 200
 
 CLR_HEADER_BG = "#D9CCFF"
 CLR_TABLE_BG = "#EDE7FF"
@@ -48,10 +49,8 @@ def S_LBL():   return Pack(font_size=F_LABEL, padding_right=8, flex=1)
 
 
 def S_INP(w=None):
-    kw = dict(font_size=F_INPUT, padding_right=10)
-    if w is not None:
-        kw["width"] = w
-    return Pack(**kw)
+    # Игнорируем переданную ширину и применяем единую ширину для всех полей
+    return Pack(font_size=F_INPUT, padding_right=10, width=INP_W)
 
 
 def S_BTN():   return Pack(padding_top=10, padding_bottom=10, padding_left=12, padding_right=12, flex=1)

@@ -687,53 +687,80 @@ class RowStrengthApp(toga.App):
         if self._updating:
             return
 
-        # 1) На iOS сперва убираем фокус с инпутов/клаву
-        self._dismiss_ios_inputs()
+        # Блокируем обработчики на время массовых обновлений
+        self._updating = True
+        try:
+            # 1) На iOS сперва убираем фокус с инпутов/клаву
+            self._dismiss_ios_inputs()
 
-        # 2) Запоминаем текущие значения до смены языка
-        old_lang = self.lang
-        old_gender_key = GENDER_MAP[old_lang].get(self.gender.value, "male")
-        old_gender_b_key = GENDER_MAP[old_lang].get(self.gender_b.value, "male")
-        old_min = self.min_sel.value
-        old_sec = self.sec_sel.value
-        old_cen = self.cen_sel.value
+            # 2) Сохраняем текущее состояние (до смены языка)
+            old_lang = self.lang
+            old_gender_key = GENDER_MAP[old_lang].get(self.gender.value, "male")
+            old_gender_b_key = GENDER_MAP[old_lang].get(self.gender_b.value, "male")
+            old_min = self.min_sel.value
+            old_sec = self.sec_sel.value
+            old_cen = self.cen_sel.value
 
-        # 3) Меняем язык
-        inv = {v: k for k, v in LANG_LABEL.items()}
-        self.lang = inv.get(self.lang_sel.value, "en")
+            # Перенос упражнения через внутренний ключ
+            old_ex_key = EX_UI_TO_KEY.get(old_lang, {}).get(self.exercise.value, None)
 
-        # 4) Обновляем тексты/элементы UI на новом языке (без принудительной смены значений)
-        self._apply_language_texts()
+            # 3) Меняем язык по выбору в селекте
+            inv = {v: k for k, v in LANG_LABEL.items()}
+            self.lang = inv.get(self.lang_sel.value, "en")
 
-        # 5) Восстанавливаем выбранный гендер на новом языке
-        self.gender.items = GENDER_LABELS[self.lang]
-        self.gender.value = GENDER_LABELS[self.lang][0 if old_gender_key == "female" else 1]
-        self.gender_b.items = GENDER_LABELS[self.lang]
-        self.gender_b.value = GENDER_LABELS[self.lang][0 if old_gender_b_key == "female" else 1]
+            # 4) Обновляем тексты/элементы UI (могут пересобрать списки)
+            self._apply_language_texts()
 
-        # 6) Восстанавливаем значения времени до пересборки списков
-        self.min_sel.value = old_min
-        self.sec_sel.value = old_sec
-        self.cen_sel.value = old_cen
+            # 5) Восстанавливаем выбранный гендер на новом языке
+            self.gender.items = GENDER_LABELS[self.lang]
+            self.gender.value = GENDER_LABELS[self.lang][0 if old_gender_key == "female" else 1]
+            self.gender_b.items = GENDER_LABELS[self.lang]
+            self.gender_b.value = GENDER_LABELS[self.lang][0 if old_gender_b_key == "female" else 1]
 
-        # 7) Перестраиваем списки минут/секунд, сохранив выбранные значения, если доступны
-        self._rebuild_time_selects()
+            # 6) Восстанавливаем упражнение по ключу (если был распознан)
+            if old_ex_key is not None:
+                new_ex_label = EX_KEY_TO_LABEL.get(self.lang, {}).get(old_ex_key)
+                items = list(self.exercise.items) or []
+                if new_ex_label in items:
+                    self.exercise.value = new_ex_label
+                elif items:
+                    self.exercise.value = items[0]
 
-        # 8) Чистим результаты и «пинаем» контейнеры
-        self._clear_all_results()
-        self._nudge_scrollcontainers()
+            # 7) Восстанавливаем значения времени
+            self.min_sel.value = old_min
+            self.sec_sel.value = old_sec
+            self.cen_sel.value = old_cen
 
-        # 9) Через микрозадержку повторяем (страховка от гонок перерисовки)
-        def _second_pass():
+            # 8) Перестраиваем списки минут/секунд с сохранением выбранного
+            self._rebuild_time_selects()
+
+            # 9) Жёстко ещё раз зафиксируем секунды, если они доступны в текущем списке
+            try:
+                seconds_now = list(self.sec_sel.items) or []
+                if old_sec in seconds_now:
+                    self.sec_sel.value = old_sec
+            except Exception:
+                pass
+
+            # 10) Чистим результаты и «пинаем» контейнеры
             self._clear_all_results()
             self._nudge_scrollcontainers()
-            self._update_existing_titles()
 
-        asyncio.get_event_loop().call_later(0.015, _second_pass)
+            # 11) Через микрозадержку повторяем (страховка от гонок перерисовки)
+            def _second_pass():
+                self._clear_all_results()
+                self._nudge_scrollcontainers()
+                self._update_existing_titles()
 
-        # 10) Финальный рефреш
-        self._deep_refresh(self.main_window.content)
-        _force_layout_ios(self.main_window)
+            asyncio.get_event_loop().call_later(0.015, _second_pass)
+
+            # Финальный рефреш
+            self._deep_refresh(self.main_window.content)
+            _force_layout_ios(self.main_window)
+
+        finally:
+            # Разблокируем обработчики
+            self._updating = False
 
     def _apply_language_texts(self):
         if self.header_lang_label is not None:
@@ -747,7 +774,7 @@ class RowStrengthApp(toga.App):
         self.sec_lbl.text = T["seconds"][self.lang]
         self.cen_lbl.text = T["centis"][self.lang]
         self.btn_erg.text = T["calc"][self.lang]
-        # Обновляем список доступных значений пола, но НЕ принудительно меняем выбранное
+        # Только список значений пола (выбранное не трогаем здесь)
         self.gender.items = GENDER_LABELS[self.lang]
 
         # Штанга
@@ -759,21 +786,29 @@ class RowStrengthApp(toga.App):
         self.bw_lbl.text = T["bar_weight"][self.lang]
         self.reps_lbl.text = T["reps"][self.lang]
         self.btn_bar.text = T["calc"][self.lang]
-        self._set_exercise_items()
+        # Пересобираем список упражнений (значение восстановим в _on_lang_change по ключу)
+        current = self.exercise.value
+        items = list(EX_UI_TO_KEY[self.lang].keys())
+        self.exercise.items = items
+        if current in items:
+            self.exercise.value = current
+        elif items:
+            self.exercise.value = items[0]
 
         # Заголовки вкладок
         try:
-            items = list(self.tabs.content)
-            items[0].text = T["mode_erg"][self.lang]
-            items[1].text = T["mode_bar"][self.lang]
+            items_tabs = list(self.tabs.content)
+            items_tabs[0].text = T["mode_erg"][self.lang]
+            items_tabs[1].text = T["mode_bar"][self.lang]
         except Exception:
             pass
 
     def _set_exercise_items(self):
+        # (не используется напрямую теперь, логика перенесена в _apply_language_texts/_on_lang_change)
         current = self.exercise.value
         items = list(EX_UI_TO_KEY[self.lang].keys())
         self.exercise.items = items
-        self.exercise.value = current if current in items else items[0]
+        self.exercise.value = current if current in items else (items[0] if items else None)
 
     def _on_gender_change(self, widget):
         if self._updating: return

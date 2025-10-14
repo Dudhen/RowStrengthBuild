@@ -633,7 +633,12 @@ class RowStrengthApp(toga.App):
         _force_layout_ios(self.main_window)
 
     # ---- Минуты/секунды ----
-    def _rebuild_time_selects(self):
+    def _rebuild_time_selects(self, force_second_minute: bool = False):
+        """
+        Пересобирает списки минут/секунд для текущих пола/дистанции.
+        При force_second_minute=True *всегда* ставит минуты на второй элемент (или первый, если второго нет),
+        и секунды — на первый допустимый для выбранной минуты.
+        """
         g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
         dist = int(self.distance.value)
         dist_data = get_distance_data(g_key, dist, self.rowing_data)
@@ -643,16 +648,25 @@ class RowStrengthApp(toga.App):
             return
 
         minutes, sec_map = parse_available_times(dist_data)
-        default_min = minutes[1] if len(minutes) >= 2 else minutes[0]
-        if self._erg_init_done and self.min_sel.value in minutes:
-            default_min = self.min_sel.value
+
+        if force_second_minute:
+            default_min = minutes[1] if len(minutes) >= 2 else minutes[0]
+        else:
+            default_min = minutes[1] if len(minutes) >= 2 else minutes[0]
+            if self._erg_init_done and self.min_sel.value in minutes:
+                default_min = self.min_sel.value
+
         self.min_sel.items = minutes
         self.min_sel.value = default_min
 
         seconds = sec_map.get(default_min, ["00"])
-        default_sec = seconds[0]
-        if self._erg_init_done and self.sec_sel.value in seconds:
-            default_sec = self.sec_sel.value
+        if force_second_minute:
+            default_sec = seconds[0]
+        else:
+            default_sec = seconds[0]
+            if self._erg_init_done and self.sec_sel.value in seconds:
+                default_sec = self.sec_sel.value
+
         self.sec_sel.items = seconds
         self.sec_sel.value = default_sec
 
@@ -800,17 +814,32 @@ class RowStrengthApp(toga.App):
         self.exercise.value = current if current in items else (items[0] if items else None)
 
     def _on_gender_change(self, widget):
-        if self._updating: return
-        self._rebuild_time_selects()
+        if self._updating:
+            return
+        # При смене пола: минуту ставим на второй элемент, секунды по умолчанию,
+        # десятые/«миллисекунды» — в "0"
+        self._rebuild_time_selects(force_second_minute=True)
+        try:
+            self.cen_sel.value = "0"
+        except Exception:
+            pass
         _force_layout_ios(self.main_window)
 
     def _on_distance_change(self, widget):
-        if self._updating: return
-        self._rebuild_time_selects()
+        if self._updating:
+            return
+        # При смене дистанции: минуту — на второй элемент, секунды по умолчанию,
+        # десятые/«миллисекунды» — в "0"
+        self._rebuild_time_selects(force_second_minute=True)
+        try:
+            self.cen_sel.value = "0"
+        except Exception:
+            pass
         _force_layout_ios(self.main_window)
 
     def _on_minute_change(self, widget):
-        if self._updating: return
+        if self._updating:
+            return
         g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
         dist = int(self.distance.value)
         dist_data = get_distance_data(g_key, dist, self.rowing_data)

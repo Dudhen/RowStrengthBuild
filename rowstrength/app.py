@@ -34,10 +34,19 @@ CLR_ACCENT = "#6A5ACD"
 
 
 def S_MAIN():  return Pack(direction=COLUMN, padding=PAD_MAIN, flex=1)
+
+
 def S_ROW():   return Pack(direction=ROW, padding_bottom=6)
+
+
 def S_COL():   return Pack(direction=COLUMN)
+
+
 def S_HEAD():  return Pack(font_size=F_HEAD, padding_bottom=6)
+
+
 def S_LBL():   return Pack(font_size=F_LABEL, padding_right=8, flex=1)
+
 
 def S_INP(w=None, is_lang=None):
     if is_lang:
@@ -46,6 +55,7 @@ def S_INP(w=None, is_lang=None):
             kw["width"] = w
         return Pack(**kw)
     return Pack(font_size=F_INPUT, padding_right=10, width=INP_W)
+
 
 def S_BTN():   return Pack(padding_top=10, padding_bottom=10, padding_left=12, padding_right=12, flex=1)
 
@@ -149,41 +159,6 @@ EX_UI_TO_KEY = {
 EX_KEY_TO_LABEL = {lang: {v: k for k, v in EX_UI_TO_KEY[lang].items()} for lang in LANGS}
 GENDER_LABELS = {lang: [T["female"][lang], T["male"][lang]] for lang in LANGS}
 GENDER_MAP = {lang: {GENDER_LABELS[lang][0]: "female", GENDER_LABELS[lang][1]: "male"} for lang in LANGS}
-
-
-# === iOS NUMPAD FIX: подготовка rubicon типов и делегатов ===
-if IS_IOS:
-    from rubicon.objc import NSObject, objc_method, SEL
-    UIControlEventTouchDown = 1 << 0
-    UIControlEventEditingDidBegin = 1 << 16
-
-    class _KBDecimal(NSObject):
-        @objc_method
-        def editingBegan_(self, sender):
-            try:
-                # гарантируем именно цифровую клавиатуру с точкой
-                sender.inputView = None
-                sender.keyboardType = 8  # UIKeyboardTypeDecimalPad
-                sender.reloadInputViews()
-            except Exception:
-                pass
-
-    class _KBNumber(NSObject):
-        @objc_method
-        def editingBegan_(self, sender):
-            try:
-                sender.inputView = None
-                sender.keyboardType = 4  # UIKeyboardTypeNumberPad
-                sender.reloadInputViews()
-            except Exception:
-                pass
-else:
-    # Заглушки для не-iOS окружений
-    UIControlEventTouchDown = 0
-    UIControlEventEditingDidBegin = 0
-    def sel(x): return x
-    class _KBDecimal: ...
-    class _KBNumber: ...
 
 
 # -------- Утилиты расчёта/таблиц --------
@@ -292,9 +267,107 @@ class RowStrengthApp(toga.App):
         self._sec_value = "00"
         self._cen_value = "0"
 
-        # === iOS NUMPAD FIX ===
-        # Держим сильные ссылки на обработчики, чтобы их не собрал GC
-        self._kb_handlers = {}
+        # Флаг: применяли ли уже «первую фиксацию» минут после первой смены дистанции
+        self._first_distance_change_fixed = False
+
+    # ========== iOS: принудительно задаём типы цифровой клавиатуры ==========
+    def _apply_ios_keyboard_types(self):
+        """
+        Для NumberInput на iOS напрямую задаём тип клавиатуры нативному UITextField:
+          - weight, weight_b, bar_weight: UIKeyboardTypeDecimalPad (8)
+          - reps: UIKeyboardTypeNumberPad (4)
+        Делаем это несколько раз (с задержкой), чтобы попасть после первого layout.
+        """
+        if not IS_IOS:
+            return
+
+        def _set_kb(widget, kb_code: int):
+            try:
+                native = widget._impl.native  # UITextField
+                if native is None:
+                    return
+                native.keyboardType = kb_code
+                native.reloadInputViews()
+            except Exception:
+                pass
+
+        try:
+            _set_kb(self.weight, 8)       # DecimalPad
+            _set_kb(self.weight_b, 8)     # DecimalPad
+            _set_kb(self.bar_weight, 8)   # DecimalPad
+            _set_kb(self.reps, 4)         # NumberPad
+        except Exception:
+            pass
+
+    # ========== iOS: синхронизация отображаемого текста Selection с выбранным значением ==========
+    def _ios_sync_selection_display(self, selection_widget: toga.Selection, index: int | None = None):
+        """
+        На iOS иногда после программной установки selection.value визуально остаётся
+        первая строка. Насильно синхронизируем текст UITextField и позицию UIPickerView.
+        """
+        if sys.platform != "ios":
+            return
+        try:
+            items = list(selection_widget.items) or []
+            if not items:
+                return
+            # Если индекс не задан — пробуем вычислить по текущему value
+            if index is None:
+                vals = [row.value for row in items]
+                cur = getattr(selection_widget, "value", None)
+                index = vals.index(cur) if cur in vals else 0
+
+            # Целевое значение
+            target = items[index].value
+
+            # Ещё раз проставим value на всякий случай
+            try:
+                selection_widget.value = target
+            except Exception:
+                pass
+
+            # Дёргаем нативщину
+            try:
+                native = selection_widget._impl.native  # UITextField
+                if native:
+                    # Обновим отрисованный текст
+                    try:
+                        native.text = str(target)
+                    except Exception:
+                        pass
+                    # Попробуем выставить выбранную строку в UIPickerView
+                    try:
+                        picker = native.inputView
+                    except Exception:
+                        picker = None
+                    if picker:
+                        try:
+                            picker.reloadAllComponents()
+                        except Exception:
+                            pass
+                        # selectRow:inComponent:animated:
+                        try:
+                            picker.selectRow_inComponent_animated(index, 0, False)
+                        except Exception:
+                            try:
+                                picker.selectRow(index, inComponent=0, animated=False)
+                            except Exception:
+                                pass
+                    try:
+                        native.setNeedsLayout()
+                        native.layoutIfNeeded()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            try:
+                selection_widget.refresh()
+            except Exception:
+                pass
+            _force_layout_ios(self.main_window)
+        except Exception:
+            pass
 
     # ---- Сплэш ----
     def startup(self):
@@ -504,6 +577,8 @@ class RowStrengthApp(toga.App):
         try:
             self._rebuild_time_selects(force_second_minute=True)
             self._set_minutes_to_second_current_items()
+            # Синхронизируем визуал на всякий случай
+            self._ios_sync_selection_display(self.min_sel, index=1)
             self._cen_value = "0"
             try:
                 self.cen_sel.value = "0"
@@ -511,49 +586,6 @@ class RowStrengthApp(toga.App):
                 pass
             self._deep_refresh(self.erg_page or self.main_window.content)
             _force_layout_ios(self.main_window)
-        except Exception:
-            pass
-
-    # === iOS NUMPAD FIX: привязка цифровых клавиатур к полям ===
-    def _apply_ios_keyboard_types(self):
-        if not IS_IOS:
-            return
-
-        def bind(widget, kb_code, handler_cls):
-            try:
-                native = widget._impl.native  # UITextField
-                if not native:
-                    return
-                # 1) гарантируем, что не подставлен кастомный inputView (иначе клавиатура не появится)
-                try:
-                    native.inputView = None
-                except Exception:
-                    pass
-                # 2) ставим нужный тип клавиатуры
-                try:
-                    native.keyboardType = kb_code
-                except Exception:
-                    pass
-                # 3) сразу обновляем
-                try:
-                    native.reloadInputViews()
-                except Exception:
-                    pass
-                # 4) подписываемся на начало редактирования, чтобы при первом фокусе точно подхватилось
-                try:
-                    handler = handler_cls.alloc().init()
-                    self._kb_handlers[native] = handler  # держим ссылку
-                    native.addTarget_action_forControlEvents_(handler, SEL('editingBegan:'), UIControlEventEditingDidBegin)
-                except Exception:
-                    pass
-            except Exception:
-                pass
-
-        try:
-            bind(self.weight,     8, _KBDecimal)  # decimalPad
-            bind(self.weight_b,   8, _KBDecimal)  # decimalPad
-            bind(self.bar_weight, 8, _KBDecimal)  # decimalPad
-            bind(self.reps,       4, _KBNumber)   # numberPad
         except Exception:
             pass
 
@@ -700,16 +732,18 @@ class RowStrengthApp(toga.App):
         root.add(self.tabs)
         self.main_window.content = root
 
-        # === iOS: цифровая клавиатура для NumberInput ===
+        # === iOS: выставляем цифровые клавиатуры для числовых полей ===
         self._apply_ios_keyboard_types()
         if IS_IOS:
-            # повтор — после первого layout, и ещё раз позднее
+            # Повторим после первого layout и чуть позже — для надёжности
             asyncio.get_event_loop().call_later(0.03, self._apply_ios_keyboard_types)
             asyncio.get_event_loop().call_later(0.20, self._apply_ios_keyboard_types)
 
         # Первичная инициализация таймингов — сразу второй элемент минут + ноль «сотых»
         self._rebuild_time_selects(force_second_minute=True)
         self._set_minutes_to_second_current_items()
+        # Синхронизируем визуал сразу после сборки
+        self._ios_sync_selection_display(self.min_sel, index=1)
         self._cen_value = "0"
         try:
             self.cen_sel.value = "0"
@@ -741,6 +775,7 @@ class RowStrengthApp(toga.App):
             # «миллисекунды» в "0"
             self._rebuild_time_selects(force_second_minute=True)
             self._set_minutes_to_second_current_items()
+            self._ios_sync_selection_display(self.min_sel, index=1)
             self._cen_value = "0"
             try:
                 self.cen_sel.value = "0"
@@ -755,7 +790,7 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
-        # На всякий случай ещё раз применим цифровые клавиатуры (после всех перестроений)
+        # На всякий случай ещё раз применим цифровые клавиатуры
         self._apply_ios_keyboard_types()
         _force_layout_ios(self.main_window)
 
@@ -901,8 +936,10 @@ class RowStrengthApp(toga.App):
                 self._clear_all_results()
                 self._nudge_scrollcontainers()
                 self._update_existing_titles()
-                # === iOS NUMPAD FIX: переустанавливаем типы клавиатур после смены языка
+                # и ещё раз применим типы клавиатуры
                 self._apply_ios_keyboard_types()
+                # и синхронизируем визуал минут
+                self._ios_sync_selection_display(self.min_sel)
 
             asyncio.get_event_loop().call_later(0.015, _second_pass)
 
@@ -961,13 +998,12 @@ class RowStrengthApp(toga.App):
         # При смене пола: минуту — второй элемент; «миллисекунды» — "0"
         self._rebuild_time_selects(force_second_minute=True)
         self._set_minutes_to_second_current_items()
+        self._ios_sync_selection_display(self.min_sel, index=1)
         self._cen_value = "0"
         try:
             self.cen_sel.value = "0"
         except Exception:
             pass
-        # === iOS NUMPAD FIX ===
-        self._apply_ios_keyboard_types()
         _force_layout_ios(self.main_window)
 
     def _on_distance_change(self, widget):
@@ -976,13 +1012,24 @@ class RowStrengthApp(toga.App):
         # При смене дистанции: минуту — второй элемент; «миллисекунды» — "0"
         self._rebuild_time_selects(force_second_minute=True)
         self._set_minutes_to_second_current_items()
+
+        # --- ФИКС БАГА: первая смена дистанции после старта — насильно обновляем визуал на iOS ---
+        if not self._first_distance_change_fixed and sys.platform == "ios":
+            # Сразу и с небольшой задержкой — чтобы попасть после всех layout'ов
+            self._ios_sync_selection_display(self.min_sel, index=1)
+            loop = asyncio.get_event_loop()
+            loop.call_later(0.01, lambda: self._ios_sync_selection_display(self.min_sel, index=1))
+            loop.call_later(0.08, lambda: self._ios_sync_selection_display(self.min_sel, index=1))
+            self._first_distance_change_fixed = True
+        else:
+            # Для последующих изменений тоже держим визуал в порядке
+            self._ios_sync_selection_display(self.min_sel, index=1)
+
         self._cen_value = "0"
         try:
             self.cen_sel.value = "0"
         except Exception:
             pass
-        # === iOS NUMPAD FIX ===
-        self._apply_ios_keyboard_types()
         _force_layout_ios(self.main_window)
 
     def _on_minute_change(self, widget):

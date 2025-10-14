@@ -267,6 +267,9 @@ class RowStrengthApp(toga.App):
         self._sec_value = "00"
         self._cen_value = "0"
 
+        # Флаг: применяли ли уже «первую фиксацию» минут после первой смены дистанции
+        self._first_distance_change_fixed = False
+
     # ========== iOS: принудительно задаём типы цифровой клавиатуры ==========
     def _apply_ios_keyboard_types(self):
         """
@@ -293,6 +296,76 @@ class RowStrengthApp(toga.App):
             _set_kb(self.weight_b, 8)     # DecimalPad
             _set_kb(self.bar_weight, 8)   # DecimalPad
             _set_kb(self.reps, 4)         # NumberPad
+        except Exception:
+            pass
+
+    # ========== iOS: синхронизация отображаемого текста Selection с выбранным значением ==========
+    def _ios_sync_selection_display(self, selection_widget: toga.Selection, index: int | None = None):
+        """
+        На iOS иногда после программной установки selection.value визуально остаётся
+        первая строка. Насильно синхронизируем текст UITextField и позицию UIPickerView.
+        """
+        if sys.platform != "ios":
+            return
+        try:
+            items = list(selection_widget.items) or []
+            if not items:
+                return
+            # Если индекс не задан — пробуем вычислить по текущему value
+            if index is None:
+                vals = [row.value for row in items]
+                cur = getattr(selection_widget, "value", None)
+                index = vals.index(cur) if cur in vals else 0
+
+            # Целевое значение
+            target = items[index].value
+
+            # Ещё раз проставим value на всякий случай
+            try:
+                selection_widget.value = target
+            except Exception:
+                pass
+
+            # Дёргаем нативщину
+            try:
+                native = selection_widget._impl.native  # UITextField
+                if native:
+                    # Обновим отрисованный текст
+                    try:
+                        native.text = str(target)
+                    except Exception:
+                        pass
+                    # Попробуем выставить выбранную строку в UIPickerView
+                    try:
+                        picker = native.inputView
+                    except Exception:
+                        picker = None
+                    if picker:
+                        try:
+                            picker.reloadAllComponents()
+                        except Exception:
+                            pass
+                        # selectRow:inComponent:animated:
+                        try:
+                            picker.selectRow_inComponent_animated(index, 0, False)
+                        except Exception:
+                            try:
+                                picker.selectRow(index, inComponent=0, animated=False)
+                            except Exception:
+                                pass
+                    try:
+                        native.setNeedsLayout()
+                        native.layoutIfNeeded()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            try:
+                selection_widget.refresh()
+            except Exception:
+                pass
+            _force_layout_ios(self.main_window)
         except Exception:
             pass
 
@@ -504,6 +577,8 @@ class RowStrengthApp(toga.App):
         try:
             self._rebuild_time_selects(force_second_minute=True)
             self._set_minutes_to_second_current_items()
+            # Синхронизируем визуал на всякий случай
+            self._ios_sync_selection_display(self.min_sel, index=1)
             self._cen_value = "0"
             try:
                 self.cen_sel.value = "0"
@@ -644,8 +719,8 @@ class RowStrengthApp(toga.App):
             )
         except TypeError:
             self.tabs = toga.OptionContainer(
-                content=[(self.erg_page, T()["mode_erg"][self.lang]),
-                         (self.bar_page, T()["mode_bar"][self.lang])],
+                content=[(self.erg_page, T["mode_erg"][self.lang]),
+                         (self.bar_page, T["mode_bar"][self.lang])],
                 style=Pack(flex=1)
             )
 
@@ -667,6 +742,8 @@ class RowStrengthApp(toga.App):
         # Первичная инициализация таймингов — сразу второй элемент минут + ноль «сотых»
         self._rebuild_time_selects(force_second_minute=True)
         self._set_minutes_to_second_current_items()
+        # Синхронизируем визуал сразу после сборки
+        self._ios_sync_selection_display(self.min_sel, index=1)
         self._cen_value = "0"
         try:
             self.cen_sel.value = "0"
@@ -698,6 +775,7 @@ class RowStrengthApp(toga.App):
             # «миллисекунды» в "0"
             self._rebuild_time_selects(force_second_minute=True)
             self._set_minutes_to_second_current_items()
+            self._ios_sync_selection_display(self.min_sel, index=1)
             self._cen_value = "0"
             try:
                 self.cen_sel.value = "0"
@@ -860,6 +938,8 @@ class RowStrengthApp(toga.App):
                 self._update_existing_titles()
                 # и ещё раз применим типы клавиатуры
                 self._apply_ios_keyboard_types()
+                # и синхронизируем визуал минут
+                self._ios_sync_selection_display(self.min_sel)
 
             asyncio.get_event_loop().call_later(0.015, _second_pass)
 
@@ -918,6 +998,7 @@ class RowStrengthApp(toga.App):
         # При смене пола: минуту — второй элемент; «миллисекунды» — "0"
         self._rebuild_time_selects(force_second_minute=True)
         self._set_minutes_to_second_current_items()
+        self._ios_sync_selection_display(self.min_sel, index=1)
         self._cen_value = "0"
         try:
             self.cen_sel.value = "0"
@@ -931,6 +1012,19 @@ class RowStrengthApp(toga.App):
         # При смене дистанции: минуту — второй элемент; «миллисекунды» — "0"
         self._rebuild_time_selects(force_second_minute=True)
         self._set_minutes_to_second_current_items()
+
+        # --- ФИКС БАГА: первая смена дистанции после старта — насильно обновляем визуал на iOS ---
+        if not self._first_distance_change_fixed and sys.platform == "ios":
+            # Сразу и с небольшой задержкой — чтобы попасть после всех layout'ов
+            self._ios_sync_selection_display(self.min_sel, index=1)
+            loop = asyncio.get_event_loop()
+            loop.call_later(0.01, lambda: self._ios_sync_selection_display(self.min_sel, index=1))
+            loop.call_later(0.08, lambda: self._ios_sync_selection_display(self.min_sel, index=1))
+            self._first_distance_change_fixed = True
+        else:
+            # Для последующих изменений тоже держим визуал в порядке
+            self._ios_sync_selection_display(self.min_sel, index=1)
+
         self._cen_value = "0"
         try:
             self.cen_sel.value = "0"

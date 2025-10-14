@@ -145,6 +145,9 @@ T = {
                     "fr": "Impossible d'estimer le pourcentage de 1RM.",
                     "es": "No se puede estimar el porcentaje de 1RM.",
                     "ru": "Не удалось сопоставить процент к 1ПМ для этих данных."},
+    "ex_bench": {"en": "Bench press", "de": "Bankdrücken", "fr": "Développé couché", "es": "Press banca", "ru": "Жим"},
+    "ex_squat": {"en": "Squat", "de": "Kniebeuge", "fr": "Squat", "es": "Sentadilla", "ru": "Присед"},
+    "ex_deadlift": {"en": "Deadlift", "de": "Kreuzheben", "fr": "Soulevé de terre", "es": "Peso muerto", "ru": "Становая тяга"},
 }
 EX_UI_TO_KEY = {
     lang: {

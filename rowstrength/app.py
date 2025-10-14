@@ -445,6 +445,19 @@ class RowStrengthApp(toga.App):
 
             asyncio.get_event_loop().call_later(0.04, _restore_tab)
 
+    # ---- iOS: гарантированная установка минут на второй элемент после первого layout ----
+    def _initial_ios_minute_fix(self):
+        try:
+            self._rebuild_time_selects(force_second_minute=True)
+            try:
+                self.cen_sel.value = "0"
+            except Exception:
+                pass
+            self._deep_refresh(self.erg_page or self.main_window.content)
+            _force_layout_ios(self.main_window)
+        except Exception:
+            pass
+
     # ---- Основной UI ----
     def _build_main(self):
         self.rowing_data = load_json_from_package("data_for_rowing_app.json")
@@ -590,12 +603,20 @@ class RowStrengthApp(toga.App):
         self.main_window.content = root
 
         # Первичная инициализация таймингов
-        self._rebuild_time_selects()
+        self._rebuild_time_selects(force_second_minute=True)  # сразу второй элемент минут
+        try:
+            self.cen_sel.value = "0"
+        except Exception:
+            pass
         self._erg_init_done = True
 
         # Пост-фиксации и автопрогрев раскладки «Штанги»
         self._post_build_fixups()
         asyncio.get_event_loop().call_later(0.05, self._prime_bar_layout_then_clear)
+
+        # Доп. фиксация старта для iOS — после стабилизации вьюх
+        if sys.platform == "ios":
+            asyncio.get_event_loop().call_later(0.03, self._initial_ios_minute_fix)
 
     # ---- Пост-фиксации для iOS и первой раскладки ----
     def _post_build_fixups(self):
@@ -608,19 +629,13 @@ class RowStrengthApp(toga.App):
             pass
 
         try:
-            self._rebuild_time_selects()
-
-            minutes = list(self.min_sel.items) or []
-            if "06" in minutes:
-                self.min_sel.value = "06"
-
-                g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
-                dist = int(self.distance.value)
-                dist_data = get_distance_data(g_key, dist, self.rowing_data)
-                _, sec_map = parse_available_times(dist_data)
-                secs = sec_map.get("06", list(self.sec_sel.items) or ["00"])
-                self.sec_sel.items = secs
-                self.sec_sel.value = secs[0]
+            # Всегда второй элемент минут при первичной раскладке +
+            # «миллисекунды» в "0"
+            self._rebuild_time_selects(force_second_minute=True)
+            try:
+                self.cen_sel.value = "0"
+            except Exception:
+                pass
 
             if self.erg_page is not None:
                 self._deep_refresh(self.erg_page)
@@ -732,7 +747,9 @@ class RowStrengthApp(toga.App):
             self.exercise.items = list(EX_UI_TO_KEY[self.lang].keys())
             if old_ex_key is not None:
                 new_ex_label = EX_KEY_TO_LABEL[self.lang].get(old_ex_key)
-                if new_ex_label in [row.value for row in list(self.exercise.items)]:
+                # В Toga items — это строки-значения Row.value
+                items_values = [row.value for row in list(self.exercise.items)]
+                if new_ex_label in items_values:
                     self.exercise.value = new_ex_label
                 elif self.exercise.items:
                     self.exercise.value = list(self.exercise.items)[0].value

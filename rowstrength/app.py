@@ -267,6 +267,35 @@ class RowStrengthApp(toga.App):
         self._sec_value = "00"
         self._cen_value = "0"
 
+    # ========== iOS: принудительно задаём типы цифровой клавиатуры ==========
+    def _apply_ios_keyboard_types(self):
+        """
+        Для NumberInput на iOS напрямую задаём тип клавиатуры нативному UITextField:
+          - weight, weight_b, bar_weight: UIKeyboardTypeDecimalPad (8)
+          - reps: UIKeyboardTypeNumberPad (4)
+        Делаем это несколько раз (с задержкой), чтобы попасть после первого layout.
+        """
+        if not IS_IOS:
+            return
+
+        def _set_kb(widget, kb_code: int):
+            try:
+                native = widget._impl.native  # UITextField
+                if native is None:
+                    return
+                native.keyboardType = kb_code
+                native.reloadInputViews()
+            except Exception:
+                pass
+
+        try:
+            _set_kb(self.weight, 8)       # DecimalPad
+            _set_kb(self.weight_b, 8)     # DecimalPad
+            _set_kb(self.bar_weight, 8)   # DecimalPad
+            _set_kb(self.reps, 4)         # NumberPad
+        except Exception:
+            pass
+
     # ---- Сплэш ----
     def startup(self):
         self.main_window = toga.MainWindow(title="", size=WINDOW_SIZE)
@@ -615,8 +644,8 @@ class RowStrengthApp(toga.App):
             )
         except TypeError:
             self.tabs = toga.OptionContainer(
-                content=[(self.erg_page, T["mode_erg"][self.lang]),
-                         (self.bar_page, T["mode_bar"][self.lang])],
+                content=[(self.erg_page, T()["mode_erg"][self.lang]),
+                         (self.bar_page, T()["mode_bar"][self.lang])],
                 style=Pack(flex=1)
             )
 
@@ -627,6 +656,13 @@ class RowStrengthApp(toga.App):
         root.add(spacer)
         root.add(self.tabs)
         self.main_window.content = root
+
+        # === iOS: выставляем цифровые клавиатуры для числовых полей ===
+        self._apply_ios_keyboard_types()
+        if IS_IOS:
+            # Повторим после первого layout и чуть позже — для надёжности
+            asyncio.get_event_loop().call_later(0.03, self._apply_ios_keyboard_types)
+            asyncio.get_event_loop().call_later(0.20, self._apply_ios_keyboard_types)
 
         # Первичная инициализация таймингов — сразу второй элемент минут + ноль «сотых»
         self._rebuild_time_selects(force_second_minute=True)
@@ -676,6 +712,8 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
+        # На всякий случай ещё раз применим цифровые клавиатуры
+        self._apply_ios_keyboard_types()
         _force_layout_ios(self.main_window)
 
     # ---- Минуты/секунды ----
@@ -820,12 +858,16 @@ class RowStrengthApp(toga.App):
                 self._clear_all_results()
                 self._nudge_scrollcontainers()
                 self._update_existing_titles()
+                # и ещё раз применим типы клавиатуры
+                self._apply_ios_keyboard_types()
 
             asyncio.get_event_loop().call_later(0.015, _second_pass)
 
             # Финальный рефреш
             self._deep_refresh(self.main_window.content)
             _force_layout_ios(self.main_window)
+            # Повтор для клавиатур
+            self._apply_ios_keyboard_types()
 
         finally:
             self._updating = False

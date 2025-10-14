@@ -24,7 +24,6 @@ F_HEAD = 22 if IS_IOS else 18
 F_LABEL = 16 if IS_IOS else 14
 F_INPUT = 16 if IS_IOS else 14
 PAD_MAIN = 16 if IS_IOS else 14
-INP_W = 200
 
 CLR_HEADER_BG = "#D9CCFF"
 CLR_TABLE_BG = "#EDE7FF"
@@ -34,18 +33,26 @@ CLR_ACCENT = "#6A5ACD"
 
 
 def S_MAIN():  return Pack(direction=COLUMN, padding=PAD_MAIN, flex=1)
+
+
 def S_ROW():   return Pack(direction=ROW, padding_bottom=6)
+
+
 def S_COL():   return Pack(direction=COLUMN)
+
+
 def S_HEAD():  return Pack(font_size=F_HEAD, padding_bottom=6)
+
+
 def S_LBL():   return Pack(font_size=F_LABEL, padding_right=8, flex=1)
 
-def S_INP(w=None, is_lang=None):
-    if is_lang:
-        kw = dict(font_size=F_INPUT, padding_right=10)
-        if w is not None:
-            kw["width"] = w
-        return Pack(**kw)
-    return Pack(font_size=F_INPUT, padding_right=10, width=INP_W)
+
+def S_INP(w=None):
+    kw = dict(font_size=F_INPUT, padding_right=10)
+    if w is not None:
+        kw["width"] = w
+    return Pack(**kw)
+
 
 def S_BTN():   return Pack(padding_top=10, padding_bottom=10, padding_left=12, padding_right=12, flex=1)
 
@@ -151,41 +158,6 @@ GENDER_LABELS = {lang: [T["female"][lang], T["male"][lang]] for lang in LANGS}
 GENDER_MAP = {lang: {GENDER_LABELS[lang][0]: "female", GENDER_LABELS[lang][1]: "male"} for lang in LANGS}
 
 
-# === iOS NUMPAD FIX: подготовка rubicon типов и делегатов ===
-if IS_IOS:
-    from rubicon.objc import NSObject, objc_method, SEL
-    UIControlEventTouchDown = 1 << 0
-    UIControlEventEditingDidBegin = 1 << 16
-
-    class _KBDecimal(NSObject):
-        @objc_method
-        def editingBegan_(self, sender):
-            try:
-                # гарантируем именно цифровую клавиатуру с точкой
-                sender.inputView = None
-                sender.keyboardType = 8  # UIKeyboardTypeDecimalPad
-                sender.reloadInputViews()
-            except Exception:
-                pass
-
-    class _KBNumber(NSObject):
-        @objc_method
-        def editingBegan_(self, sender):
-            try:
-                sender.inputView = None
-                sender.keyboardType = 4  # UIKeyboardTypeNumberPad
-                sender.reloadInputViews()
-            except Exception:
-                pass
-else:
-    # Заглушки для не-iOS окружений
-    UIControlEventTouchDown = 0
-    UIControlEventEditingDidBegin = 0
-    def sel(x): return x
-    class _KBDecimal: ...
-    class _KBNumber: ...
-
-
 # -------- Утилиты расчёта/таблиц --------
 def _two(n: int) -> str:
     return f"{n:02d}"
@@ -267,8 +239,7 @@ def _force_layout_ios(window):
 class RowStrengthApp(toga.App):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Язык по умолчанию — English
-        self.lang = "en"
+        self.lang = "ru"
         self._updating = False
         self._erg_init_done = False
         self.rowing_data = None
@@ -286,15 +257,6 @@ class RowStrengthApp(toga.App):
         self.header_dev_label = None
         self.header_lang_label = None
         self.lang_sel = None
-
-        # --- Авторитетные значения времени (обход бага iOS Selection.value) ---
-        self._min_value = "06"
-        self._sec_value = "00"
-        self._cen_value = "0"
-
-        # === iOS NUMPAD FIX ===
-        # Держим сильные ссылки на обработчики, чтобы их не собрал GC
-        self._kb_handlers = {}
 
     # ---- Сплэш ----
     def startup(self):
@@ -452,10 +414,6 @@ class RowStrengthApp(toga.App):
                 page.content = old
             except Exception:
                 pass
-            try:
-                page.refresh()
-            except Exception:
-                pass
         try:
             self._deep_refresh(self.main_window.content)
             _force_layout_ios(self.main_window)
@@ -483,86 +441,13 @@ class RowStrengthApp(toga.App):
 
             asyncio.get_event_loop().call_later(0.04, _restore_tab)
 
-    # ---- Жёсткая установка "минуты = второй элемент" по текущему списку ----
-    def _set_minutes_to_second_current_items(self):
-        try:
-            rows = list(self.min_sel.items) or []
-            if len(rows) >= 2:
-                try:
-                    # «пихаем» iOS-имплементацию
-                    self.min_sel.value = rows[0].value
-                except Exception:
-                    pass
-                self.min_sel.value = rows[1].value
-                # и обязательно фиксируем авторитетное состояние
-                self._min_value = rows[1].value
-        except Exception:
-            pass
-
-    # ---- iOS: гарантированная установка минут после первого layout ----
-    def _initial_ios_minute_fix(self):
-        try:
-            self._rebuild_time_selects(force_second_minute=True)
-            self._set_minutes_to_second_current_items()
-            self._cen_value = "0"
-            try:
-                self.cen_sel.value = "0"
-            except Exception:
-                pass
-            self._deep_refresh(self.erg_page or self.main_window.content)
-            _force_layout_ios(self.main_window)
-        except Exception:
-            pass
-
-    # === iOS NUMPAD FIX: привязка цифровых клавиатур к полям ===
-    def _apply_ios_keyboard_types(self):
-        if not IS_IOS:
-            return
-
-        def bind(widget, kb_code, handler_cls):
-            try:
-                native = widget._impl.native  # UITextField
-                if not native:
-                    return
-                # 1) гарантируем, что не подставлен кастомный inputView (иначе клавиатура не появится)
-                try:
-                    native.inputView = None
-                except Exception:
-                    pass
-                # 2) ставим нужный тип клавиатуры
-                try:
-                    native.keyboardType = kb_code
-                except Exception:
-                    pass
-                # 3) сразу обновляем
-                try:
-                    native.reloadInputViews()
-                except Exception:
-                    pass
-                # 4) подписываемся на начало редактирования, чтобы при первом фокусе точно подхватилось
-                try:
-                    handler = handler_cls.alloc().init()
-                    self._kb_handlers[native] = handler  # держим ссылку
-                    native.addTarget_action_forControlEvents_(handler, SEL('editingBegan:'), UIControlEventEditingDidBegin)
-                except Exception:
-                    pass
-            except Exception:
-                pass
-
-        try:
-            bind(self.weight,     8, _KBDecimal)  # decimalPad
-            bind(self.weight_b,   8, _KBDecimal)  # decimalPad
-            bind(self.bar_weight, 8, _KBDecimal)  # decimalPad
-            bind(self.reps,       4, _KBNumber)   # numberPad
-        except Exception:
-            pass
-
     # ---- Основной UI ----
     def _build_main(self):
         self.rowing_data = load_json_from_package("data_for_rowing_app.json")
         self.strength_data_all = load_json_from_package("data_for_strength_app.json")
 
         # ====== Верхний фиолетовый прямоугольник (шапка) ======
+        # Строка 1: по центру "Dev by Dudhen"
         self.header_dev_label = toga.Label(
             "RowStrength by Dudhen",
             style=Pack(font_size=F_HEAD, color="#501c59", text_align="center", padding_top=8, padding_bottom=4)
@@ -577,7 +462,7 @@ class RowStrengthApp(toga.App):
             items=[LANG_LABEL[c] for c in LANGS],
             value=LANG_LABEL[self.lang],
             on_change=self._on_lang_change,
-            style=S_INP(is_lang=True)
+            style=S_INP()
         )
         self.header_lang_label = toga.Label(
             T["language"][self.lang],
@@ -616,8 +501,8 @@ class RowStrengthApp(toga.App):
         self.sec_lbl = toga.Label(T["seconds"][self.lang], style=S_LBL())
         self.cen_lbl = toga.Label(T["centis"][self.lang], style=S_LBL())
         self.min_sel = toga.Selection(items=["06"], value="06", on_change=self._on_minute_change, style=S_INP(120))
-        self.sec_sel = toga.Selection(items=[_two(i) for i in range(60)], value="00", on_change=self._on_second_change, style=S_INP(120))
-        self.cen_sel = toga.Selection(items=[str(i) for i in range(10)], value="0", on_change=self._on_centi_change, style=S_INP(120))
+        self.sec_sel = toga.Selection(items=[_two(i) for i in range(60)], value="00", style=S_INP(120))
+        self.cen_sel = toga.Selection(items=[str(i) for i in range(10)], value="0", style=S_INP(120))
 
         self.btn_erg = toga.Button(T["calc"][self.lang], on_press=self.calculate_erg, style=S_BTN())
         try:
@@ -700,31 +585,13 @@ class RowStrengthApp(toga.App):
         root.add(self.tabs)
         self.main_window.content = root
 
-        # === iOS: цифровая клавиатура для NumberInput ===
-        self._apply_ios_keyboard_types()
-        if IS_IOS:
-            # повтор — после первого layout, и ещё раз позднее
-            asyncio.get_event_loop().call_later(0.03, self._apply_ios_keyboard_types)
-            asyncio.get_event_loop().call_later(0.20, self._apply_ios_keyboard_types)
-
-        # Первичная инициализация таймингов — сразу второй элемент минут + ноль «сотых»
-        self._rebuild_time_selects(force_second_minute=True)
-        self._set_minutes_to_second_current_items()
-        self._cen_value = "0"
-        try:
-            self.cen_sel.value = "0"
-        except Exception:
-            pass
+        # Первичная инициализация таймингов
+        self._rebuild_time_selects()
         self._erg_init_done = True
 
         # Пост-фиксации и автопрогрев раскладки «Штанги»
         self._post_build_fixups()
         asyncio.get_event_loop().call_later(0.05, self._prime_bar_layout_then_clear)
-
-        # Доп. фиксации старта для iOS — два прохода, чтобы покрыть медленный layout
-        if sys.platform == "ios":
-            asyncio.get_event_loop().call_later(0.03, self._initial_ios_minute_fix)
-            asyncio.get_event_loop().call_later(0.20, self._initial_ios_minute_fix)
 
     # ---- Пост-фиксации для iOS и первой раскладки ----
     def _post_build_fixups(self):
@@ -737,15 +604,19 @@ class RowStrengthApp(toga.App):
             pass
 
         try:
-            # Всегда второй элемент минут при первичной раскладке +
-            # «миллисекунды» в "0"
-            self._rebuild_time_selects(force_second_minute=True)
-            self._set_minutes_to_second_current_items()
-            self._cen_value = "0"
-            try:
-                self.cen_sel.value = "0"
-            except Exception:
-                pass
+            self._rebuild_time_selects()
+
+            minutes = list(self.min_sel.items) or []
+            if "06" in minutes:
+                self.min_sel.value = "06"
+
+                g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
+                dist = int(self.distance.value)
+                dist_data = get_distance_data(g_key, dist, self.rowing_data)
+                _, sec_map = parse_available_times(dist_data)
+                secs = sec_map.get("06", list(self.sec_sel.items) or ["00"])
+                self.sec_sel.items = secs
+                self.sec_sel.value = secs[0]
 
             if self.erg_page is not None:
                 self._deep_refresh(self.erg_page)
@@ -755,52 +626,33 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
-        # На всякий случай ещё раз применим цифровые клавиатуры (после всех перестроений)
-        self._apply_ios_keyboard_types()
         _force_layout_ios(self.main_window)
 
     # ---- Минуты/секунды ----
-    def _rebuild_time_selects(self, force_second_minute: bool = False):
-        """
-        Пересобирает списки минут/секунд для текущих пола/дистанции.
-        При force_second_minute=True *всегда* ставит минуты на второй элемент (или первый, если второго нет),
-        и секунды — на первый допустимый для выбранной минуты.
-        """
+    def _rebuild_time_selects(self):
         g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
         dist = int(self.distance.value)
         dist_data = get_distance_data(g_key, dist, self.rowing_data)
         if not dist_data:
-            self.min_sel.items = ["00"]; self.min_sel.value = "00"
-            self.sec_sel.items = ["00"]; self.sec_sel.value = "00"
-            self._min_value = "00"
-            self._sec_value = "00"
+            self.min_sel.items = ["00"];
+            self.min_sel.value = "00"
+            self.sec_sel.items = ["00"];
+            self.sec_sel.value = "00"
             return
 
         minutes, sec_map = parse_available_times(dist_data)
-
-        if force_second_minute:
-            default_min = minutes[1] if len(minutes) >= 2 else minutes[0]
-        else:
-            default_min = minutes[1] if len(minutes) >= 2 else minutes[0]
-            # Используем авторитетное значение, а не .value у виджета
-            if self._erg_init_done and self._min_value in minutes:
-                default_min = self._min_value
-
+        default_min = minutes[1] if len(minutes) >= 2 else minutes[0]
+        if self._erg_init_done and self.min_sel.value in minutes:
+            default_min = self.min_sel.value
         self.min_sel.items = minutes
         self.min_sel.value = default_min
-        self._min_value = default_min  # фиксируем состояние
 
         seconds = sec_map.get(default_min, ["00"])
-        if force_second_minute:
-            default_sec = seconds[0]
-        else:
-            default_sec = seconds[0]
-            if self._erg_init_done and self._sec_value in seconds:
-                default_sec = self._sec_value
-
+        default_sec = seconds[0]
+        if self._erg_init_done and self.sec_sel.value in seconds:
+            default_sec = self.sec_sel.value
         self.sec_sel.items = seconds
         self.sec_sel.value = default_sec
-        self._sec_value = default_sec  # фиксируем состояние
 
     # ---- Обновление существующих заголовков (без пересчёта) ----
     def _update_existing_titles(self):
@@ -833,87 +685,31 @@ class RowStrengthApp(toga.App):
         if self._updating:
             return
 
-        self._updating = True
-        try:
-            # 1) На iOS сперва убираем фокус с инпутов/клаву
-            self._dismiss_ios_inputs()
+        # 1) На iOS сперва убираем фокус с инпутов/клаву
+        self._dismiss_ios_inputs()
 
-            # 2) Сохраняем текущее состояние в языконезависимом виде (из авторитетного состояния)
-            old_lang = self.lang
-            old_gender_key = GENDER_MAP[old_lang].get(self.gender.value, "male")
-            old_gender_b_key = GENDER_MAP[old_lang].get(self.gender_b.value, "male")
-            old_min = self._min_value
-            old_sec = self._sec_value
-            old_cen = self._cen_value
-            old_ex_key = EX_UI_TO_KEY.get(old_lang, {}).get(self.exercise.value, None)
+        # 2) Меняем язык/лейблы/доступные минуты/секунды
+        inv = {v: k for k, v in LANG_LABEL.items()}
+        self.lang = inv.get(self.lang_sel.value, "ru")
+        self._apply_language_texts()
+        self._rebuild_time_selects()
 
-            # 3) Обновляем язык
-            inv = {v: k for k, v in LANG_LABEL.items()}
-            self.lang = inv.get(self.lang_sel.value, "en")
+        # 3) Жёстко чистим результаты
+        self._clear_all_results()
+        # 4) И обязательно «пнул» ScrollContainer, чтобы iOS отбросил старые сабвью
+        self._nudge_scrollcontainers()
 
-            # 4) Переставляем тексты и списки (без выставления значений)
-            self._apply_language_texts()
-
-            # 5) Восстанавливаем выбранный гендер на обеих вкладках
-            self.gender.items = GENDER_LABELS[self.lang]
-            self.gender.value = GENDER_LABELS[self.lang][0 if old_gender_key == "female" else 1]
-            self.gender_b.items = GENDER_LABELS[self.lang]
-            self.gender_b.value = GENDER_LABELS[self.lang][0 if old_gender_b_key == "female" else 1]
-
-            # 6) Восстанавливаем упражнение через внутренний ключ
-            self.exercise.items = list(EX_UI_TO_KEY[self.lang].keys())
-            if old_ex_key is not None:
-                new_ex_label = EX_KEY_TO_LABEL[self.lang].get(old_ex_key)
-                items_values = [row.value for row in list(self.exercise.items)]
-                if new_ex_label in items_values:
-                    self.exercise.value = new_ex_label
-                elif self.exercise.items:
-                    self.exercise.value = list(self.exercise.items)[0].value
-
-            # 7) Восстанавливаем время, используя состояние; затем перестраиваем
-            self._min_value = old_min
-            self._sec_value = old_sec
-            self._cen_value = old_cen
-
-            self.min_sel.value = old_min
-            self._rebuild_time_selects()
-            try:
-                seconds_now = [row.value for row in list(self.sec_sel.items)] or []
-                if old_sec in seconds_now:
-                    self.sec_sel.value = old_sec
-                    self._sec_value = old_sec
-            except Exception:
-                pass
-            try:
-                centis_now = [row.value for row in list(self.cen_sel.items)] or []
-                if old_cen in centis_now:
-                    self.cen_sel.value = old_cen
-                    self._cen_value = old_cen
-            except Exception:
-                pass
-
-            # 8) Чистим результаты и «пинаем» контейнеры
+        # 5) Через микрозадержку повторяем (страховка от гонок перерисовки)
+        def _second_pass():
             self._clear_all_results()
             self._nudge_scrollcontainers()
+            self._update_existing_titles()
 
-            # 9) Страховочный второй проход
-            def _second_pass():
-                self._clear_all_results()
-                self._nudge_scrollcontainers()
-                self._update_existing_titles()
-                # === iOS NUMPAD FIX: переустанавливаем типы клавиатур после смены языка
-                self._apply_ios_keyboard_types()
+        asyncio.get_event_loop().call_later(0.015, _second_pass)
 
-            asyncio.get_event_loop().call_later(0.015, _second_pass)
-
-            # Финальный рефреш
-            self._deep_refresh(self.main_window.content)
-            _force_layout_ios(self.main_window)
-            # Повтор для клавиатур
-            self._apply_ios_keyboard_types()
-
-        finally:
-            self._updating = False
+        # Финальный рефреш
+        self._deep_refresh(self.main_window.content)
+        _force_layout_ios(self.main_window)
 
     def _apply_language_texts(self):
         if self.header_lang_label is not None:
@@ -927,93 +723,54 @@ class RowStrengthApp(toga.App):
         self.sec_lbl.text = T["seconds"][self.lang]
         self.cen_lbl.text = T["centis"][self.lang]
         self.btn_erg.text = T["calc"][self.lang]
-        # Только обновляем список значений, без установки value
         self.gender.items = GENDER_LABELS[self.lang]
+        self.gender.value = GENDER_LABELS[self.lang][1]
 
         # Штанга
         self.gender_b_lbl.text = T["gender"][self.lang]
         self.weight_b_lbl.text = T["weight"][self.lang]
         self.gender_b.items = GENDER_LABELS[self.lang]
+        self.gender_b.value = GENDER_LABELS[self.lang][1]
 
         self.ex_lbl.text = T["exercise"][self.lang]
         self.bw_lbl.text = T["bar_weight"][self.lang]
         self.reps_lbl.text = T["reps"][self.lang]
         self.btn_bar.text = T["calc"][self.lang]
+        self._set_exercise_items()
 
         # Заголовки вкладок
         try:
-            items_tabs = list(self.tabs.content)
-            items_tabs[0].text = T["mode_erg"][self.lang]
-            items_tabs[1].text = T["mode_bar"][self.lang]
+            items = list(self.tabs.content)
+            items[0].text = T["mode_erg"][self.lang]
+            items[1].text = T["mode_bar"][self.lang]
         except Exception:
             pass
 
     def _set_exercise_items(self):
-        # Оставлено для совместимости, не используется в логике смены языка
         current = self.exercise.value
         items = list(EX_UI_TO_KEY[self.lang].keys())
         self.exercise.items = items
-        self.exercise.value = current if current in items else (items[0] if items else None)
+        self.exercise.value = current if current in items else items[0]
 
     def _on_gender_change(self, widget):
-        if self._updating:
-            return
-        # При смене пола: минуту — второй элемент; «миллисекунды» — "0"
-        self._rebuild_time_selects(force_second_minute=True)
-        self._set_minutes_to_second_current_items()
-        self._cen_value = "0"
-        try:
-            self.cen_sel.value = "0"
-        except Exception:
-            pass
-        # === iOS NUMPAD FIX ===
-        self._apply_ios_keyboard_types()
+        if self._updating: return
+        self._rebuild_time_selects()
         _force_layout_ios(self.main_window)
 
     def _on_distance_change(self, widget):
-        if self._updating:
-            return
-        # При смене дистанции: минуту — второй элемент; «миллисекунды» — "0"
-        self._rebuild_time_selects(force_second_minute=True)
-        self._set_minutes_to_second_current_items()
-        self._cen_value = "0"
-        try:
-            self.cen_sel.value = "0"
-        except Exception:
-            pass
-        # === iOS NUMPAD FIX ===
-        self._apply_ios_keyboard_types()
+        if self._updating: return
+        self._rebuild_time_selects()
         _force_layout_ios(self.main_window)
 
     def _on_minute_change(self, widget):
-        if self._updating:
-            return
+        if self._updating: return
         g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
         dist = int(self.distance.value)
         dist_data = get_distance_data(g_key, dist, self.rowing_data)
         minutes, sec_map = parse_available_times(dist_data)
-        # Обновляем состояние выбранной минуты
-        self._min_value = self.min_sel.value
-        seconds = sec_map.get(self._min_value, ["00"])
+        seconds = sec_map.get(self.min_sel.value, ["00"])
         self.sec_sel.items = seconds
         self.sec_sel.value = seconds[0]
-        self._sec_value = seconds[0]
-
-    def _on_second_change(self, widget):
-        if self._updating:
-            return
-        try:
-            self._sec_value = self.sec_sel.value
-        except Exception:
-            pass
-
-    def _on_centi_change(self, widget):
-        if self._updating:
-            return
-        try:
-            self._cen_value = self.cen_sel.value
-        except Exception:
-            pass
 
     # ---- Расчёты ----
     def calculate_erg(self, widget):
@@ -1021,29 +778,16 @@ class RowStrengthApp(toga.App):
         try:
             bw = float(self.weight.value or 0)
             if not (40 <= bw <= 140):
-                self._info(T["err_weight"][self.lang]); return
+                self._info(T["err_weight"][self.lang]);
+                return
 
             g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
             dist = int(self.distance.value)
             dist_data = get_distance_data(g_key, dist, self.rowing_data)
             if not dist_data: self._info(T["err_no_data"][self.lang]); return
 
-            # Используем авторитетные значения, а не .value у Selection (обход iOS бага)
-            mm = self._min_value
-            ss = self._sec_value
-            cc = self._cen_value
-
-            t_norm = (
-                f"{mm}:{ss}.{cc}"
-                if str(cc) not in ("0", "00")
-                else f"{mm}:{ss}"
-            )
-            dist_data_time = (
-                dist_data.get(t_norm)
-                or dist_data.get(t_norm.lstrip("0"))
-                or dist_data.get(f"{mm}:{ss}")
-                or dist_data.get(f"{mm}:{ss}".lstrip("0"))
-            )
+            t_norm = f"{self.min_sel.value}:{self.sec_sel.value}"
+            dist_data_time = dist_data.get(t_norm) or dist_data.get(t_norm.lstrip("0"))
             if not dist_data_time: self._info(T["err_time_range"][self.lang]); return
 
             percent = dist_data_time.get("percent")
@@ -1055,7 +799,7 @@ class RowStrengthApp(toga.App):
             for m in SHOW_DISTANCES:
                 if m in kmap:
                     t = kmap[m]
-                    rows1.append([f"{m} m", f"{t}", get_split_500m(m, t)])
+                    rows1.append([f"{m} m", f"{t}.00", get_split_500m(m, t)])
 
             rows2, labels = [], EX_KEY_TO_LABEL[self.lang]
             for ex_key, ui_label in labels.items():
@@ -1089,15 +833,18 @@ class RowStrengthApp(toga.App):
         try:
             bw = float(self.weight_b.value or 0)
             if not (40 <= bw <= 140):
-                self._info(T["err_weight"][self.lang]); return
+                self._info(T["err_weight"][self.lang]);
+                return
 
             bar_w = float(self.bar_weight.value or 0)
             if not (1 <= bar_w <= 700):
-                self._info(T["err_bar_weight"][self.lang]); return
+                self._info(T["err_bar_weight"][self.lang]);
+                return
 
             reps = int(self.reps.value or 0)
             if not (1 <= reps <= 30):
-                self._info(T["err_reps"][self.lang]); return
+                self._info(T["err_reps"][self.lang]);
+                return
 
             rep_max = round((bar_w / REPS_TABLE[reps]) * 100, 2)
 

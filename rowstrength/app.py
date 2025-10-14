@@ -450,7 +450,6 @@ class RowStrengthApp(toga.App):
         try:
             rows = list(self.min_sel.items) or []
             if len(rows) >= 2:
-                # Сначала явно выставляем 1-й, затем 2-й — это «пихает» iOS-имплементацию.
                 try:
                     self.min_sel.value = rows[0].value
                 except Exception:
@@ -459,19 +458,40 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
-    # ---- iOS: гарантированная установка минут после первого layout ----
-    def _initial_ios_minute_fix(self):
+    # ---- Стартовый «трюк» с дистанцией: 2000 -> 2500 -> 2000 ----
+    def _startup_distance_toggle_fix(self):
         try:
-            self._rebuild_time_selects(force_second_minute=True)
-            self._set_minutes_to_second_current_items()
+            orig = str(self.distance.value)
+        except Exception:
+            orig = "2000"
+
+        # Подбираем альтернативную дистанцию (по умолчанию 2500)
+        all_str = [str(d) for d in DISTANCES]
+        alt = "2500" if "2500" in all_str and orig != "2500" else (
+            next((d for d in all_str if d != orig), orig)
+        )
+
+        def _toggle_once():
             try:
-                self.cen_sel.value = "0"
+                # шаг 1: переключаемся на альтернативу
+                self.distance.value = alt
+                self._on_distance_change(self.distance)
+
+                # шаг 2: через микрозадержку возвращаем оригинал
+                def _revert():
+                    try:
+                        self.distance.value = orig
+                        self._on_distance_change(self.distance)
+                    except Exception:
+                        pass
+
+                asyncio.get_event_loop().call_later(0.01, _revert)
             except Exception:
                 pass
-            self._deep_refresh(self.erg_page or self.main_window.content)
-            _force_layout_ios(self.main_window)
-        except Exception:
-            pass
+
+        # Делаем это чуть позже, чтобы всё гарантированно смонтировалось
+        delay = 0.30 if sys.platform == "ios" else 0.05
+        asyncio.get_event_loop().call_later(delay, _toggle_once)
 
     # ---- Основной UI ----
     def _build_main(self):
@@ -479,7 +499,6 @@ class RowStrengthApp(toga.App):
         self.strength_data_all = load_json_from_package("data_for_strength_app.json")
 
         # ====== Верхний фиолетовый прямоугольник (шапка) ======
-        # Строка 1: по центру "Dev by Dudhen"
         self.header_dev_label = toga.Label(
             "RowStrength by Dudhen",
             style=Pack(font_size=F_HEAD, color="#501c59", text_align="center", padding_top=8, padding_bottom=4)
@@ -630,10 +649,9 @@ class RowStrengthApp(toga.App):
         self._post_build_fixups()
         asyncio.get_event_loop().call_later(0.05, self._prime_bar_layout_then_clear)
 
-        # Доп. фиксации старта для iOS — два прохода, чтобы покрыть медленный layout
-        if sys.platform == "ios":
-            asyncio.get_event_loop().call_later(0.03, self._initial_ios_minute_fix)
-            asyncio.get_event_loop().call_later(0.20, self._initial_ios_minute_fix)
+        # Стартовый «трюк» для iOS/Windows: 2000 -> 2500 -> 2000,
+        # чтобы фактическое значение минут стало вторым
+        self._startup_distance_toggle_fix()
 
     # ---- Пост-фиксации для iOS и первой раскладки ----
     def _post_build_fixups(self):
@@ -646,8 +664,6 @@ class RowStrengthApp(toga.App):
             pass
 
         try:
-            # Всегда второй элемент минут при первичной раскладке +
-            # «миллисекунды» в "0"
             self._rebuild_time_selects(force_second_minute=True)
             self._set_minutes_to_second_current_items()
             try:
@@ -850,8 +866,7 @@ class RowStrengthApp(toga.App):
     def _on_gender_change(self, widget):
         if self._updating:
             return
-        # При смене пола: минуту ставим на второй элемент, секунды по умолчанию,
-        # десятые/«миллисекунды» — в "0"
+        # При смене пола: минуту — второй элемент; «миллисекунды» — "0"
         self._rebuild_time_selects(force_second_minute=True)
         self._set_minutes_to_second_current_items()
         try:
@@ -863,8 +878,7 @@ class RowStrengthApp(toga.App):
     def _on_distance_change(self, widget):
         if self._updating:
             return
-        # При смене дистанции: минуту — на второй элемент, секунды по умолчанию,
-        # десятые/«миллисекунды» — в "0"
+        # При смене дистанции: минуту — второй элемент; «миллисекунды» — "0"
         self._rebuild_time_selects(force_second_minute=True)
         self._set_minutes_to_second_current_items()
         try:

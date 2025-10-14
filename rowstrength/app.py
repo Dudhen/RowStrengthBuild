@@ -445,10 +445,25 @@ class RowStrengthApp(toga.App):
 
             asyncio.get_event_loop().call_later(0.04, _restore_tab)
 
-    # ---- iOS: гарантированная установка минут на второй элемент после первого layout ----
+    # ---- Жёсткая установка "минуты = второй элемент" по текущему списку ----
+    def _set_minutes_to_second_current_items(self):
+        try:
+            rows = list(self.min_sel.items) or []
+            if len(rows) >= 2:
+                # Сначала явно выставляем 1-й, затем 2-й — это «пихает» iOS-имплементацию.
+                try:
+                    self.min_sel.value = rows[0].value
+                except Exception:
+                    pass
+                self.min_sel.value = rows[1].value
+        except Exception:
+            pass
+
+    # ---- iOS: гарантированная установка минут после первого layout ----
     def _initial_ios_minute_fix(self):
         try:
             self._rebuild_time_selects(force_second_minute=True)
+            self._set_minutes_to_second_current_items()
             try:
                 self.cen_sel.value = "0"
             except Exception:
@@ -602,8 +617,9 @@ class RowStrengthApp(toga.App):
         root.add(self.tabs)
         self.main_window.content = root
 
-        # Первичная инициализация таймингов
-        self._rebuild_time_selects(force_second_minute=True)  # сразу второй элемент минут
+        # Первичная инициализация таймингов — сразу второй элемент минут + ноль «сотых»
+        self._rebuild_time_selects(force_second_minute=True)
+        self._set_minutes_to_second_current_items()
         try:
             self.cen_sel.value = "0"
         except Exception:
@@ -614,9 +630,10 @@ class RowStrengthApp(toga.App):
         self._post_build_fixups()
         asyncio.get_event_loop().call_later(0.05, self._prime_bar_layout_then_clear)
 
-        # Доп. фиксация старта для iOS — после стабилизации вьюх
+        # Доп. фиксации старта для iOS — два прохода, чтобы покрыть медленный layout
         if sys.platform == "ios":
             asyncio.get_event_loop().call_later(0.03, self._initial_ios_minute_fix)
+            asyncio.get_event_loop().call_later(0.20, self._initial_ios_minute_fix)
 
     # ---- Пост-фиксации для iOS и первой раскладки ----
     def _post_build_fixups(self):
@@ -632,6 +649,7 @@ class RowStrengthApp(toga.App):
             # Всегда второй элемент минут при первичной раскладке +
             # «миллисекунды» в "0"
             self._rebuild_time_selects(force_second_minute=True)
+            self._set_minutes_to_second_current_items()
             try:
                 self.cen_sel.value = "0"
             except Exception:
@@ -747,7 +765,6 @@ class RowStrengthApp(toga.App):
             self.exercise.items = list(EX_UI_TO_KEY[self.lang].keys())
             if old_ex_key is not None:
                 new_ex_label = EX_KEY_TO_LABEL[self.lang].get(old_ex_key)
-                # В Toga items — это строки-значения Row.value
                 items_values = [row.value for row in list(self.exercise.items)]
                 if new_ex_label in items_values:
                     self.exercise.value = new_ex_label
@@ -836,6 +853,7 @@ class RowStrengthApp(toga.App):
         # При смене пола: минуту ставим на второй элемент, секунды по умолчанию,
         # десятые/«миллисекунды» — в "0"
         self._rebuild_time_selects(force_second_minute=True)
+        self._set_minutes_to_second_current_items()
         try:
             self.cen_sel.value = "0"
         except Exception:
@@ -848,6 +866,7 @@ class RowStrengthApp(toga.App):
         # При смене дистанции: минуту — на второй элемент, секунды по умолчанию,
         # десятые/«миллисекунды» — в "0"
         self._rebuild_time_selects(force_second_minute=True)
+        self._set_minutes_to_second_current_items()
         try:
             self.cen_sel.value = "0"
         except Exception:

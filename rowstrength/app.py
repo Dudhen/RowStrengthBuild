@@ -153,7 +153,7 @@ GENDER_MAP = {lang: {GENDER_LABELS[lang][0]: "female", GENDER_LABELS[lang][1]: "
 
 # === iOS NUMPAD FIX: подготовка rubicon типов и делегатов ===
 if IS_IOS:
-    from rubicon.objc import NSObject, objc_method, sel
+    from rubicon.objc import NSObject, objc_method, SEL
     UIControlEventTouchDown = 1 << 0
     UIControlEventEditingDidBegin = 1 << 16
 
@@ -543,7 +543,7 @@ class RowStrengthApp(toga.App):
                 try:
                     handler = handler_cls.alloc().init()
                     self._kb_handlers[native] = handler  # держим ссылку
-                    native.addTarget_action_forControlEvents_(handler, sel('editingBegan:'), UIControlEventEditingDidBegin)
+                    native.addTarget_action_forControlEvents_(handler, SEL('editingBegan:'), UIControlEventEditingDidBegin)
                 except Exception:
                     pass
             except Exception:

@@ -262,6 +262,11 @@ class RowStrengthApp(toga.App):
         self.header_lang_label = None
         self.lang_sel = None
 
+        # --- Авторитетные значения времени (обход бага iOS Selection.value) ---
+        self._min_value = "06"
+        self._sec_value = "00"
+        self._cen_value = "0"
+
     # ---- Сплэш ----
     def startup(self):
         self.main_window = toga.MainWindow(title="", size=WINDOW_SIZE)
@@ -418,6 +423,10 @@ class RowStrengthApp(toga.App):
                 page.content = old
             except Exception:
                 pass
+            try:
+                page.refresh()
+            except Exception:
+                pass
         try:
             self._deep_refresh(self.main_window.content)
             _force_layout_ios(self.main_window)
@@ -450,12 +459,14 @@ class RowStrengthApp(toga.App):
         try:
             rows = list(self.min_sel.items) or []
             if len(rows) >= 2:
-                # Сначала явно выставляем 1-й, затем 2-й — это «пихает» iOS-имплементацию.
                 try:
+                    # «пихаем» iOS-имплементацию
                     self.min_sel.value = rows[0].value
                 except Exception:
                     pass
                 self.min_sel.value = rows[1].value
+                # и обязательно фиксируем авторитетное состояние
+                self._min_value = rows[1].value
         except Exception:
             pass
 
@@ -464,6 +475,7 @@ class RowStrengthApp(toga.App):
         try:
             self._rebuild_time_selects(force_second_minute=True)
             self._set_minutes_to_second_current_items()
+            self._cen_value = "0"
             try:
                 self.cen_sel.value = "0"
             except Exception:
@@ -479,7 +491,6 @@ class RowStrengthApp(toga.App):
         self.strength_data_all = load_json_from_package("data_for_strength_app.json")
 
         # ====== Верхний фиолетовый прямоугольник (шапка) ======
-        # Строка 1: по центру "Dev by Dudhen"
         self.header_dev_label = toga.Label(
             "RowStrength by Dudhen",
             style=Pack(font_size=F_HEAD, color="#501c59", text_align="center", padding_top=8, padding_bottom=4)
@@ -533,8 +544,8 @@ class RowStrengthApp(toga.App):
         self.sec_lbl = toga.Label(T["seconds"][self.lang], style=S_LBL())
         self.cen_lbl = toga.Label(T["centis"][self.lang], style=S_LBL())
         self.min_sel = toga.Selection(items=["06"], value="06", on_change=self._on_minute_change, style=S_INP(120))
-        self.sec_sel = toga.Selection(items=[_two(i) for i in range(60)], value="00", style=S_INP(120))
-        self.cen_sel = toga.Selection(items=[str(i) for i in range(10)], value="0", style=S_INP(120))
+        self.sec_sel = toga.Selection(items=[_two(i) for i in range(60)], value="00", on_change=self._on_second_change, style=S_INP(120))
+        self.cen_sel = toga.Selection(items=[str(i) for i in range(10)], value="0", on_change=self._on_centi_change, style=S_INP(120))
 
         self.btn_erg = toga.Button(T["calc"][self.lang], on_press=self.calculate_erg, style=S_BTN())
         try:
@@ -620,6 +631,7 @@ class RowStrengthApp(toga.App):
         # Первичная инициализация таймингов — сразу второй элемент минут + ноль «сотых»
         self._rebuild_time_selects(force_second_minute=True)
         self._set_minutes_to_second_current_items()
+        self._cen_value = "0"
         try:
             self.cen_sel.value = "0"
         except Exception:
@@ -650,6 +662,7 @@ class RowStrengthApp(toga.App):
             # «миллисекунды» в "0"
             self._rebuild_time_selects(force_second_minute=True)
             self._set_minutes_to_second_current_items()
+            self._cen_value = "0"
             try:
                 self.cen_sel.value = "0"
             except Exception:
@@ -678,6 +691,8 @@ class RowStrengthApp(toga.App):
         if not dist_data:
             self.min_sel.items = ["00"]; self.min_sel.value = "00"
             self.sec_sel.items = ["00"]; self.sec_sel.value = "00"
+            self._min_value = "00"
+            self._sec_value = "00"
             return
 
         minutes, sec_map = parse_available_times(dist_data)
@@ -686,22 +701,25 @@ class RowStrengthApp(toga.App):
             default_min = minutes[1] if len(minutes) >= 2 else minutes[0]
         else:
             default_min = minutes[1] if len(minutes) >= 2 else minutes[0]
-            if self._erg_init_done and self.min_sel.value in minutes:
-                default_min = self.min_sel.value
+            # Используем авторитетное значение, а не .value у виджета
+            if self._erg_init_done and self._min_value in minutes:
+                default_min = self._min_value
 
         self.min_sel.items = minutes
         self.min_sel.value = default_min
+        self._min_value = default_min  # фиксируем состояние
 
         seconds = sec_map.get(default_min, ["00"])
         if force_second_minute:
             default_sec = seconds[0]
         else:
             default_sec = seconds[0]
-            if self._erg_init_done and self.sec_sel.value in seconds:
-                default_sec = self.sec_sel.value
+            if self._erg_init_done and self._sec_value in seconds:
+                default_sec = self._sec_value
 
         self.sec_sel.items = seconds
         self.sec_sel.value = default_sec
+        self._sec_value = default_sec  # фиксируем состояние
 
     # ---- Обновление существующих заголовков (без пересчёта) ----
     def _update_existing_titles(self):
@@ -739,13 +757,13 @@ class RowStrengthApp(toga.App):
             # 1) На iOS сперва убираем фокус с инпутов/клаву
             self._dismiss_ios_inputs()
 
-            # 2) Сохраняем текущее состояние в языконезависимом виде
+            # 2) Сохраняем текущее состояние в языконезависимом виде (из авторитетного состояния)
             old_lang = self.lang
             old_gender_key = GENDER_MAP[old_lang].get(self.gender.value, "male")
             old_gender_b_key = GENDER_MAP[old_lang].get(self.gender_b.value, "male")
-            old_min = self.min_sel.value
-            old_sec = self.sec_sel.value
-            old_cen = self.cen_sel.value
+            old_min = self._min_value
+            old_sec = self._sec_value
+            old_cen = self._cen_value
             old_ex_key = EX_UI_TO_KEY.get(old_lang, {}).get(self.exercise.value, None)
 
             # 3) Обновляем язык
@@ -771,19 +789,25 @@ class RowStrengthApp(toga.App):
                 elif self.exercise.items:
                     self.exercise.value = list(self.exercise.items)[0].value
 
-            # 7) Восстанавливаем время: минуту — до пересборки, секунды/сотые — после
+            # 7) Восстанавливаем время, используя состояние; затем перестраиваем
+            self._min_value = old_min
+            self._sec_value = old_sec
+            self._cen_value = old_cen
+
             self.min_sel.value = old_min
             self._rebuild_time_selects()
             try:
-                seconds_now = list(self.sec_sel.items) or []
+                seconds_now = [row.value for row in list(self.sec_sel.items)] or []
                 if old_sec in seconds_now:
                     self.sec_sel.value = old_sec
+                    self._sec_value = old_sec
             except Exception:
                 pass
             try:
-                centis_now = list(self.cen_sel.items) or []
+                centis_now = [row.value for row in list(self.cen_sel.items)] or []
                 if old_cen in centis_now:
                     self.cen_sel.value = old_cen
+                    self._cen_value = old_cen
             except Exception:
                 pass
 
@@ -830,7 +854,6 @@ class RowStrengthApp(toga.App):
         self.bw_lbl.text = T["bar_weight"][self.lang]
         self.reps_lbl.text = T["reps"][self.lang]
         self.btn_bar.text = T["calc"][self.lang]
-        # Список упражнений переставим в _on_lang_change по ключу
 
         # Заголовки вкладок
         try:
@@ -850,10 +873,10 @@ class RowStrengthApp(toga.App):
     def _on_gender_change(self, widget):
         if self._updating:
             return
-        # При смене пола: минуту ставим на второй элемент, секунды по умолчанию,
-        # десятые/«миллисекунды» — в "0"
+        # При смене пола: минуту — второй элемент; «миллисекунды» — "0"
         self._rebuild_time_selects(force_second_minute=True)
         self._set_minutes_to_second_current_items()
+        self._cen_value = "0"
         try:
             self.cen_sel.value = "0"
         except Exception:
@@ -863,10 +886,10 @@ class RowStrengthApp(toga.App):
     def _on_distance_change(self, widget):
         if self._updating:
             return
-        # При смене дистанции: минуту — на второй элемент, секунды по умолчанию,
-        # десятые/«миллисекунды» — в "0"
+        # При смене дистанции: минуту — второй элемент; «миллисекунды» — "0"
         self._rebuild_time_selects(force_second_minute=True)
         self._set_minutes_to_second_current_items()
+        self._cen_value = "0"
         try:
             self.cen_sel.value = "0"
         except Exception:
@@ -880,9 +903,28 @@ class RowStrengthApp(toga.App):
         dist = int(self.distance.value)
         dist_data = get_distance_data(g_key, dist, self.rowing_data)
         minutes, sec_map = parse_available_times(dist_data)
-        seconds = sec_map.get(self.min_sel.value, ["00"])
+        # Обновляем состояние выбранной минуты
+        self._min_value = self.min_sel.value
+        seconds = sec_map.get(self._min_value, ["00"])
         self.sec_sel.items = seconds
         self.sec_sel.value = seconds[0]
+        self._sec_value = seconds[0]
+
+    def _on_second_change(self, widget):
+        if self._updating:
+            return
+        try:
+            self._sec_value = self.sec_sel.value
+        except Exception:
+            pass
+
+    def _on_centi_change(self, widget):
+        if self._updating:
+            return
+        try:
+            self._cen_value = self.cen_sel.value
+        except Exception:
+            pass
 
     # ---- Расчёты ----
     def calculate_erg(self, widget):
@@ -897,16 +939,21 @@ class RowStrengthApp(toga.App):
             dist_data = get_distance_data(g_key, dist, self.rowing_data)
             if not dist_data: self._info(T["err_no_data"][self.lang]); return
 
+            # Используем авторитетные значения, а не .value у Selection (обход iOS бага)
+            mm = self._min_value
+            ss = self._sec_value
+            cc = self._cen_value
+
             t_norm = (
-                f"{self.min_sel.value}:{self.sec_sel.value}.{self.cen_sel.value}"
-                if str(self.cen_sel.value) not in ("0", "00")
-                else f"{self.min_sel.value}:{self.sec_sel.value}"
+                f"{mm}:{ss}.{cc}"
+                if str(cc) not in ("0", "00")
+                else f"{mm}:{ss}"
             )
             dist_data_time = (
                 dist_data.get(t_norm)
                 or dist_data.get(t_norm.lstrip("0"))
-                or dist_data.get(f"{self.min_sel.value}:{self.sec_sel.value}")
-                or dist_data.get(f"{self.min_sel.value}:{self.sec_sel.value}".lstrip("0"))
+                or dist_data.get(f"{mm}:{ss}")
+                or dist_data.get(f"{mm}:{ss}".lstrip("0"))
             )
             if not dist_data_time: self._info(T["err_time_range"][self.lang]); return
 

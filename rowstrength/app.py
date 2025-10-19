@@ -57,12 +57,12 @@ T = {
     # сплэш теперь в 2 строки и по центру
     "splash": {l: " Dev by Dudhen:\n@arseny.dudhen" for l in LANGS},
     "title": {l: "RowStrength by Dudhen" for l in LANGS},
-    "mode_erg": {"en": "Ergometer", "de": "Ergometer", "fr": "Ergomètre", "es": "Ergométrо", "ru": "Эргометр"},
+    "mode_erg": {"en": "Ergometer", "de": "Ergometer", "fr": "Ergomètre", "es": "Ergometrо", "ru": "Эргометр"},
     "mode_bar": {"en": "Barbell", "de": "Langhantel", "fr": "Barre", "es": "Barra", "ru": "Штанга"},
     "language": {"en": "Language", "de": "Sprache", "fr": "Langue", "es": "Idioma", "ru": "Язык"},
     "gender": {"en": "Gender", "de": "Geschlecht", "fr": "Sexe", "es": "Sexo", "ru": "Пол"},
     "female": {"en": "Female", "de": "Weiblich", "fr": "Femme", "es": "Mujer", "ru": "Жен"},
-    "male": {"en": "Male", "de": "Männlich", "fr": "Homme", "es": "Hombre", "ru": "Муж"},
+    "male": {"en": "Male", "de": "Мännlich", "fr": "Homme", "es": "Hombre", "ru": "Муж"},
     "weight": {"en": "Body weight (kg)", "de": "Körpergewicht (kg)", "fr": "Poids (kg)", "es": "Peso corporal (kg)",
                "ru": "Вес (кг)"},
     "distance": {"en": "Distance", "de": "Distanz", "fr": "Distance", "es": "Distancia", "ru": "Дистанция"},
@@ -119,7 +119,7 @@ T = {
     "err_bar_weight": {"en": "Bar weight must be between 1 and 700 kg.",
                        "de": "Hantelgewicht muss zwischen 1 und 700 kg liegen.",
                        "fr": "La charge doit être entre 1 et 700 kg.",
-                       "es": "El peso en barra debe estar entre 1 et 700 kg.",
+                       "es": "El peso en barra debe estar entre 1 et 700 кг.",
                        "ru": "Вес на штанге должен быть от 1 до 700"},
     "err_no_data": {"en": "No data for the selected distance/gender.",
                     "de": "Keine Daten für die gewählte Distanz/Geschlecht.",
@@ -260,13 +260,37 @@ class RowStrengthApp(toga.App):
         # Флаг: применяли ли уже «первую фиксацию» минут после первой смены дистанции
         self._first_distance_change_fixed = False
 
+    # ===== Сервис: безопасная установка items с сохранением value =====
+    def _set_selection_items_preserve(self, selection: toga.Selection, items, desired_value):
+        """
+        Установить список items для Selection, при этом сохранить выбранное значение.
+        Если desired_value отсутствует среди items — временно добавим его в начало,
+        чтобы UI не сбросил выбор. Далее можно будет скорректировать выбор вручную.
+        """
+        try:
+            items_list = [str(x) for x in (list(items) if items is not None else [])]
+            desired = None if desired_value is None else str(desired_value)
+            selection.items = items_list
+
+            if desired is None:
+                return
+
+            if desired in items_list:
+                selection.value = desired
+            else:
+                combined = [desired] + [x for x in items_list if x != desired]
+                selection.items = combined
+                selection.value = desired
+        except Exception:
+            # best-effort возврат значения
+            try:
+                if desired_value is not None:
+                    selection.value = str(desired_value)
+            except Exception:
+                pass
+
     # ========== iOS: принудительно задаём типы цифровой клавиатуры ==========
     def _apply_ios_keyboard_types(self):
-        """
-        Для NumberInput на iOS напрямую задаём тип клавиатуры нативному UITextField:
-          - weight, weight_b, bar_weight: UIKeyboardTypeDecimalPad (8)
-          - reps: UIKeyboardTypeNumberPad (4)
-        """
         if not IS_IOS:
             return
 
@@ -636,7 +660,7 @@ class RowStrengthApp(toga.App):
         # Показ полностью готового дерева
         self.main_window.content = root
 
-        # Невидимый «нудж» ScrollContainer, чтобы не было «липкого левого края» на iOS
+        # Невидимый «нудж» ScrollContainer
         self._nudge_scrollcontainers()
         if IS_IOS:
             loop = asyncio.get_event_loop()
@@ -736,33 +760,16 @@ class RowStrengthApp(toga.App):
                 elif self.exercise.items:
                     self.exercise.value = list(self.exercise.items)[0].value
 
-            # Восстанавливаем время из авторитетного состояния
+            # Восстанавливаем время
             self._min_value = old_min
             self._sec_value = old_sec
             self._cen_value = old_cen
 
-            # Перестроим списки и восстановим минуты (секунды не трогаем тут)
             self.min_sel.value = old_min
-            self._rebuild_time_selects()
+            # Перестроим списки, сохранив секунды
+            self._rebuild_time_selects(force_second_minute=False, preserve_sec=True)
 
-            # ---- БЛОК СБРОСА СЕКУНД ПРИ СМЕНЕ ЯЗЫКА — ОТКЛЮЧЁН ----
-            # try:
-            #     g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
-            #     dist = int(self.distance.value)
-            #     dist_data = get_distance_data(g_key, dist, self.rowing_data)
-            #     _, sec_map = parse_available_times(dist_data)
-            #     seconds_for_min = sec_map.get(self._min_value, ["00"])
-            #     self.sec_sel.items = seconds_for_min
-            #     if old_sec in seconds_for_min:
-            #         self.sec_sel.value = old_sec
-            #         self._sec_value = old_sec
-            #     else:
-            #         self.sec_sel.value = seconds_for_min[0]
-            #         self._sec_value = seconds_for_min[0]
-            # except Exception:
-            #     pass
-
-            # Центы оставляем как есть (без изменений списка)
+            # Центы (оставляем прежние)
             try:
                 centis_now = [row.value for row in list(self.cen_sel.items)] or []
                 if old_cen in centis_now:
@@ -775,7 +782,7 @@ class RowStrengthApp(toga.App):
             self._clear_all_results()
             self._nudge_scrollcontainers()
 
-            # Второй проход (отложенно): обновим заголовки и синхронизируем визуал минут и секунд
+            # Второй проход (отложенно): синхронизация визуала
             def _second_pass():
                 self._clear_all_results()
                 self._update_existing_titles()
@@ -834,7 +841,7 @@ class RowStrengthApp(toga.App):
     def _on_gender_change(self, widget):
         if self._updating:
             return
-        self._rebuild_time_selects(force_second_minute=True)
+        self._rebuild_time_selects(force_second_minute=True, preserve_sec=False)
         try:
             rows = list(self.min_sel.items) or []
             if len(rows) >= 2:
@@ -853,7 +860,7 @@ class RowStrengthApp(toga.App):
     def _on_distance_change(self, widget):
         if self._updating:
             return
-        self._rebuild_time_selects(force_second_minute=True)
+        self._rebuild_time_selects(force_second_minute=True, preserve_sec=False)
         try:
             rows = list(self.min_sel.items) or []
             if len(rows) >= 2:
@@ -872,20 +879,24 @@ class RowStrengthApp(toga.App):
     def _on_minute_change(self, widget):
         if self._updating:
             return
-        # Перестраиваем список секунд для выбранной минуты, НО не сбрасываем выбранное значение
+        # Перестроим список секунд для выбранной минуты, С ОХРАНОЙ текущего значения
         g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
         dist = int(self.distance.value)
         dist_data = get_distance_data(g_key, dist, self.rowing_data)
         _, sec_map = parse_available_times(dist_data)
+
         self._min_value = self.min_sel.value
         seconds = sec_map.get(self._min_value, ["00"])
 
-        self.sec_sel.items = seconds
-        # ---- СБРОС СЕКУНД ПРИ СМЕНЕ МИНУТЫ — ОТКЛЮЧЁН ----
-        # self.sec_sel.value = seconds[0]
-        # self._sec_value = seconds[0]
+        old_sec = self._sec_value
+        self._set_selection_items_preserve(self.sec_sel, seconds, old_sec)
+        # Зафиксируем фактическое значение (вдруг Toga поправила его)
+        try:
+            self._sec_value = self.sec_sel.value
+        except Exception:
+            pass
 
-        # На iOS синхронизируем поле секунд визуально (на случай багов отображения)
+        # iOS: синхронизируем визуально
         self._ios_sync_selection_display(self.sec_sel)
 
     def _on_second_change(self, widget):
@@ -905,7 +916,7 @@ class RowStrengthApp(toga.App):
             pass
 
     # ---- Минуты/секунды ----
-    def _rebuild_time_selects(self, force_second_minute: bool = False):
+    def _rebuild_time_selects(self, force_second_minute: bool = False, preserve_sec: bool = True):
         g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
         dist = int(self.distance.value)
         dist_data = get_distance_data(g_key, dist, self.rowing_data)
@@ -930,23 +941,19 @@ class RowStrengthApp(toga.App):
         self._min_value = default_min
 
         seconds = sec_map.get(default_min, ["00"])
-        if force_second_minute:
-            default_sec = seconds[0]
-        else:
-            default_sec = seconds[0]
-            if self._erg_init_done and self._sec_value in seconds:
-                default_sec = self._sec_value
 
-        self.sec_sel.items = seconds
-        if force_second_minute:
-            # При принудительной перестройке (смена пола/дистанции) — оставляем старое поведение
-            self.sec_sel.value = default_sec
+        if force_second_minute and not preserve_sec:
+            # Жёсткий режим: выбрать дефолт и зафиксировать
+            default_sec = seconds[0]
+            self._set_selection_items_preserve(self.sec_sel, seconds, default_sec)
             self._sec_value = default_sec
         else:
-            # ---- СБРОС СЕКУНД ПРИ ОБЫЧНОЙ ПЕРЕСТРОЙКЕ (напр., смена языка) — ОТКЛЮЧЁН ----
-            # self.sec_sel.value = default_sec
-            # self._sec_value = default_sec
-            pass
+            # Сохранить текущее значение секунд
+            self._set_selection_items_preserve(self.sec_sel, seconds, self._sec_value)
+            try:
+                self._sec_value = self.sec_sel.value
+            except Exception:
+                pass
 
     # ---- Расчёты ----
     def calculate_erg(self, widget):

@@ -1078,7 +1078,7 @@ class RowStrengthApp(toga.App):
                 T["bar_tbl_title"][self.lang],
                 style=Pack(font_size=F_LABEL, color=CLR_ACCENT, padding_top=6, padding_bottom=2)
             )
-            self.bar_results_holder.add(tога.Box(children=[self.bar_tbl_title_label], style=S_ROW()))
+            self.bar_results_holder.add(toga.Box(children=[self.bar_tbl_title_label], style=S_ROW()))
             self.bar_results_holder.add(make_table(rows, col_flex=[1, 1]))
 
             # Дополнительный нудж после обновления результатов на вкладке «Штанга»

@@ -84,9 +84,9 @@ T = {
     },
     "erg_tbl2_title": {
         "en": "  Barbell equivalents (bodyweight {w} kg)",
-        "de": " " if False else "  Hantel-Äquivalente (Körpergewicht {w} kg)",
+        "de": " " if False else "  Hantel-Äquivalente \n(Körpergewicht {w} kg)",
         "fr": "  Équivalents barre (poids du corps {w} kg)",
-        "es": "  Equivalentes con barra (peso corporal {w} kg)",
+        "es": "  Equivalentes con barra \n(peso corporal {w} kg)",
         "ru": "  Эквивалент в штанге с весом {w} кг",
     },
     "bar_tbl_title": {

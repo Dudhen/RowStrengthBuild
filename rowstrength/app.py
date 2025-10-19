@@ -467,6 +467,21 @@ class RowStrengthApp(toga.App):
         self._clear_results_holder("erg")
         self._clear_results_holder("bar")
 
+    # ---- Вспомогательное: выбрать «лучшие» секунды с учётом предыдущего значения ----
+    def _choose_best_second(self, seconds_list, prev_sec_value: str) -> str:
+        try:
+            secs = list(seconds_list) or []
+            if not secs:
+                return "00"
+            if prev_sec_value in secs:
+                return prev_sec_value
+            # выбрать ближайшее по значению
+            p = int(prev_sec_value)
+            best = min(secs, key=lambda s: abs(int(s) - p))
+            return best
+        except Exception:
+            return (seconds_list[0] if seconds_list else "00")
+
     # ---- Основной UI ----
     def _build_main(self):
         # 1) Загружаем данные
@@ -741,12 +756,11 @@ class RowStrengthApp(toga.App):
             self._sec_value = old_sec
             self._cen_value = old_cen
 
-            # Сначала перестроим список на основании текущих пола/дистанции,
-            # но не полагаемся на .items — дальше выставим секунды детерминированно.
+            # Перестроим списки и восстановим минуты/секунды аккуратно
             self.min_sel.value = old_min
             self._rebuild_time_selects()
 
-            # --- КРИТИЧЕСКО: жёстко восстанавливаем секунды из данных ---
+            # Секунды: жёстко восстанавливаем (или ближайшее)
             try:
                 g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
                 dist = int(self.distance.value)
@@ -754,14 +768,10 @@ class RowStrengthApp(toga.App):
                 _, sec_map = parse_available_times(dist_data)
                 seconds_for_min = sec_map.get(self._min_value, ["00"])
                 self.sec_sel.items = seconds_for_min
-                if old_sec in seconds_for_min:
-                    self.sec_sel.value = old_sec
-                    self._sec_value = old_sec
-                else:
-                    self.sec_sel.value = seconds_for_min[0]
-                    self._sec_value = seconds_for_min[0]
+                best_sec = self._choose_best_second(seconds_for_min, old_sec)
+                self.sec_sel.value = best_sec
+                self._sec_value = best_sec
             except Exception:
-                # На всякий случай оставим текущие items/value, если что-то пошло не так
                 pass
 
             # Центы
@@ -874,15 +884,22 @@ class RowStrengthApp(toga.App):
     def _on_minute_change(self, widget):
         if self._updating:
             return
+        # Перестраиваем список секунд для выбранной минуты и НЕ сбрасываем, если возможно.
         g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
         dist = int(self.distance.value)
         dist_data = get_distance_data(g_key, dist, self.rowing_data)
-        minutes, sec_map = parse_available_times(dist_data)
+        _, sec_map = parse_available_times(dist_data)
         self._min_value = self.min_sel.value
         seconds = sec_map.get(self._min_value, ["00"])
+
         self.sec_sel.items = seconds
-        self.sec_sel.value = seconds[0]
-        self._sec_value = seconds[0]
+        # сохраняем прежние секунды или берём ближайшее
+        best_sec = self._choose_best_second(seconds, self._sec_value)
+        self.sec_sel.value = best_sec
+        self._sec_value = best_sec
+
+        # На iOS синхронизируем поле секунд визуально
+        self._ios_sync_selection_display(self.sec_sel)
 
     def _on_second_change(self, widget):
         if self._updating:
@@ -929,9 +946,11 @@ class RowStrengthApp(toga.App):
         if force_second_minute:
             default_sec = seconds[0]
         else:
-            default_sec = seconds[0]
-            if self._erg_init_done and self._sec_value in seconds:
-                default_sec = self._sec_value
+            # старайся сохранить текущие секунды
+            if self._erg_init_done:
+                default_sec = self._choose_best_second(seconds, self._sec_value)
+            else:
+                default_sec = seconds[0]
 
         self.sec_sel.items = seconds
         self.sec_sel.value = default_sec

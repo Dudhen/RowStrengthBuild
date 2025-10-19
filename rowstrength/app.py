@@ -636,8 +636,7 @@ class RowStrengthApp(toga.App):
         # Показ полностью готового дерева
         self.main_window.content = root
 
-        # ——— КРИТИЧЕСКОЕ: невидимый «нудж» ScrollContainer, чтобы не было «левого края» на iOS ———
-        # (без автокликов, без переключения вкладок; пользователю это не видно)
+        # Невидимый «нудж» ScrollContainer, чтобы не было «липкого левого края» на iOS
         self._nudge_scrollcontainers()
         if IS_IOS:
             loop = asyncio.get_event_loop()
@@ -651,10 +650,15 @@ class RowStrengthApp(toga.App):
             loop.call_later(0.03, self._apply_ios_keyboard_types)
             loop.call_later(0.20, self._apply_ios_keyboard_types)
             try:
-                idx = [row.value for row in list(self.min_sel.items)].index(self._min_value)
+                idx_min = [row.value for row in list(self.min_sel.items)].index(self._min_value)
             except Exception:
-                idx = None
-            loop.call_later(0.02, lambda: self._ios_sync_selection_display(self.min_sel, index=idx))
+                idx_min = None
+            try:
+                idx_sec = [row.value for row in list(self.sec_sel.items)].index(self._sec_value)
+            except Exception:
+                idx_sec = None
+            loop.call_later(0.02, lambda: self._ios_sync_selection_display(self.min_sel, index=idx_min))
+            loop.call_later(0.025, lambda: self._ios_sync_selection_display(self.sec_sel, index=idx_sec))
 
         self._erg_init_done = True
 
@@ -700,6 +704,7 @@ class RowStrengthApp(toga.App):
         try:
             self._dismiss_ios_inputs()
 
+            # Сохраняем состояние (языконезависимо)
             old_lang = self.lang
             old_gender_key = GENDER_MAP[old_lang].get(self.gender.value, "male")
             old_gender_b_key = GENDER_MAP[old_lang].get(self.gender_b.value, "male")
@@ -708,16 +713,20 @@ class RowStrengthApp(toga.App):
             old_cen = self._cen_value
             old_ex_key = EX_UI_TO_KEY.get(old_lang, {}).get(self.exercise.value, None)
 
+            # Новый язык
             inv = {v: k for k, v in LANG_LABEL.items()}
             self.lang = inv.get(self.lang_sel.value, "en")
 
+            # Подставляем тексты
             self._apply_language_texts()
 
+            # Восстанавливаем гендеры на обеих вкладках
             self.gender.items = GENDER_LABELS[self.lang]
             self.gender.value = GENDER_LABELS[self.lang][0 if old_gender_key == "female" else 1]
             self.gender_b.items = GENDER_LABELS[self.lang]
             self.gender_b.value = GENDER_LABELS[self.lang][0 if old_gender_b_key == "female" else 1]
 
+            # Восстанавливаем упражнение
             self.exercise.items = list(EX_UI_TO_KEY[self.lang].keys())
             if old_ex_key is not None:
                 new_ex_label = EX_KEY_TO_LABEL[self.lang].get(old_ex_key)
@@ -727,19 +736,35 @@ class RowStrengthApp(toga.App):
                 elif self.exercise.items:
                     self.exercise.value = list(self.exercise.items)[0].value
 
+            # Восстанавливаем время из авторитетного состояния
             self._min_value = old_min
             self._sec_value = old_sec
             self._cen_value = old_cen
 
+            # Сначала перестроим список на основании текущих пола/дистанции,
+            # но не полагаемся на .items — дальше выставим секунды детерминированно.
             self.min_sel.value = old_min
             self._rebuild_time_selects()
+
+            # --- КРИТИЧЕСКО: жёстко восстанавливаем секунды из данных ---
             try:
-                seconds_now = [row.value for row in list(self.sec_sel.items)] or []
-                if old_sec in seconds_now:
+                g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
+                dist = int(self.distance.value)
+                dist_data = get_distance_data(g_key, dist, self.rowing_data)
+                _, sec_map = parse_available_times(dist_data)
+                seconds_for_min = sec_map.get(self._min_value, ["00"])
+                self.sec_sel.items = seconds_for_min
+                if old_sec in seconds_for_min:
                     self.sec_sel.value = old_sec
                     self._sec_value = old_sec
+                else:
+                    self.sec_sel.value = seconds_for_min[0]
+                    self._sec_value = seconds_for_min[0]
             except Exception:
+                # На всякий случай оставим текущие items/value, если что-то пошло не так
                 pass
+
+            # Центы
             try:
                 centis_now = [row.value for row in list(self.cen_sel.items)] or []
                 if old_cen in centis_now:
@@ -748,19 +773,21 @@ class RowStrengthApp(toga.App):
             except Exception:
                 pass
 
+            # Чистим результаты и слегка «пинаем» лэйаут
             self._clear_all_results()
-
-            # Мини-нудж после смены языка, чтобы iOS не «липла»
             self._nudge_scrollcontainers()
 
+            # Второй проход (отложенно): обновим заголовки и синхронизируем визуал минут и секунд
             def _second_pass():
                 self._clear_all_results()
                 self._update_existing_titles()
                 self._apply_ios_keyboard_types()
                 self._ios_sync_selection_display(self.min_sel)
+                self._ios_sync_selection_display(self.sec_sel)
 
             asyncio.get_event_loop().call_later(0.015, _second_pass)
 
+            # Финальный рефреш
             self._deep_refresh(self.main_window.content)
             _force_layout_ios(self.main_window)
             self._apply_ios_keyboard_types()

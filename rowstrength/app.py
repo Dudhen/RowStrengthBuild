@@ -430,7 +430,7 @@ class RowStrengthApp(toga.App):
             for ch in list(children):
                 self._deep_refresh(ch)
 
-    # ---- «нудж» ScrollContainer: переустановка контента туда-обратно (без смены табов/кликов) ----
+    # ---- «мягкий нудж» для обоих ScrollContainer ----
     def _nudge_scrollcontainers(self):
         for page in (self.erg_page, self.bar_page):
             if page is None:
@@ -446,6 +446,39 @@ class RowStrengthApp(toga.App):
                 page.refresh()
             except Exception:
                 pass
+        try:
+            self._deep_refresh(self.main_window.content)
+            _force_layout_ios(self.main_window)
+        except Exception:
+            pass
+
+    # ---- «сильный нудж» конкретного ScrollContainer (iOS) ----
+    def _ios_strong_nudge_scrollcontainer(self, sc: toga.ScrollContainer | None):
+        if sys.platform != "ios" or sc is None:
+            return
+        try:
+            # 1) Переставить контент туда-обратно
+            old = sc.content
+            dummy = toga.Box(style=Pack())
+            sc.content = dummy
+            sc.content = old
+        except Exception:
+            pass
+        try:
+            # 2) Форснуть лэйаут нативного UIScrollView
+            native = sc._impl.native
+            if native is not None:
+                try:
+                    native.setNeedsLayout()
+                    native.layoutIfNeeded()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            sc.refresh()
+        except Exception:
+            pass
         try:
             self._deep_refresh(self.main_window.content)
             _force_layout_ios(self.main_window)
@@ -665,12 +698,15 @@ class RowStrengthApp(toga.App):
         # Показ полностью готового дерева
         self.main_window.content = root
 
-        # Невидимый «нудж» ScrollContainer, чтобы не было «липкого левого края» на iOS
+        # Невидимый «мягкий нудж»
         self._nudge_scrollcontainers()
         if IS_IOS:
             loop = asyncio.get_event_loop()
+            # Немного «импульсов» для обоих, плюс отдельный "сильный" для бара
             loop.call_later(0.02, self._nudge_scrollcontainers)
             loop.call_later(0.10, self._nudge_scrollcontainers)
+            loop.call_later(0.03, lambda: self._ios_strong_nudge_scrollcontainer(self.bar_page))
+            loop.call_later(0.15, lambda: self._ios_strong_nudge_scrollcontainer(self.bar_page))
 
         # Тихие iOS-фиксы клавиатуры и синхронизации Selection
         self._apply_ios_keyboard_types()
@@ -699,9 +735,13 @@ class RowStrengthApp(toga.App):
         _force_layout_ios(self.main_window)
 
     # ---- Обработчик переключения вкладок (для iOS-нуджа) ----
-    def _on_tab_select(self, widget):
-        # Дополнительный нудж при переходе на любую вкладку, чтобы поля не «прилипали»
+    def _on_tab_select(self, widget, option=None):
+        # Мягкий нудж для обоих + серия сильных импульсов именно для «Штанги»
         self._nudge_scrollcontainers()
+        if IS_IOS:
+            loop = asyncio.get_event_loop()
+            for dt in (0.0, 0.02, 0.08, 0.18, 0.30):
+                loop.call_later(dt, lambda: self._ios_strong_nudge_scrollcontainer(self.bar_page))
 
     # ---- Обновление существующих заголовков (без пересчёта) ----
     def _update_existing_titles(self):
@@ -791,6 +831,12 @@ class RowStrengthApp(toga.App):
             # Чистим результаты и слегка «пинаем» лэйаут
             self._clear_all_results()
             self._nudge_scrollcontainers()
+            # И отдельно — сильный нудж для «Штанги»
+            self._ios_strong_nudge_scrollcontainer(self.bar_page)
+            if IS_IOS:
+                loop = asyncio.get_event_loop()
+                loop.call_later(0.02, lambda: self._ios_strong_nudge_scrollcontainer(self.bar_page))
+                loop.call_later(0.10, lambda: self._ios_strong_nudge_scrollcontainer(self.bar_page))
 
             # Второй проход (отложенно): синхронизация визуала
             def _second_pass():
@@ -1082,7 +1128,11 @@ class RowStrengthApp(toga.App):
             self.bar_results_holder.add(make_table(rows, col_flex=[1, 1]))
 
             # Дополнительный нудж после обновления результатов на вкладке «Штанга»
-            self._nudge_scrollcontainers()
+            self._ios_strong_nudge_scrollcontainer(self.bar_page)
+            if IS_IOS:
+                loop = asyncio.get_event_loop()
+                for dt in (0.02, 0.10, 0.20):
+                    loop.call_later(dt, lambda: self._ios_strong_nudge_scrollcontainer(self.bar_page))
 
         except Exception as e:
             self._info(str(e))

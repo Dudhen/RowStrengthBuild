@@ -101,7 +101,7 @@ T = {
     "tbl_2k": {"en": "2k ergometer", "de": "2 km Ergo", "fr": "Ergo 2 km", "es": "Ergo 2 km", "ru": "2км эргометр"},
     # Упражнения
     "ex_bench": {"en": "Bench press", "de": "Bankdrücken", "fr": "Développé couché", "es": "Press banca", "ru": "Жим"},
-    "ex_squat": {"en": "Squat", "de": "Kniebeuge", "fr": "Squat", "es": "Sentadilla", "ru": "Присед"},
+    "ex_squat": {"en": "Squat", "de": "Knieбеuge", "fr": "Squat", "es": "Sentadilla", "ru": "Присед"},
     "ex_deadlift": {"en": "Deadlift", "de": "Kreuzheben", "fr": "Soulevé de terre", "es": "Peso muerto",
                     "ru": "Становая тяга"},
     # Ошибки
@@ -109,7 +109,7 @@ T = {
     "err_weight": {"en": "Body weight must be between 40 and 140 kg.",
                    "de": "Körpergewicht muss zwischen 40 und 140 kg liegen.",
                    "fr": "Le poids doit être entre 40 et 140 kg.",
-                   "es": "El peso corporal debe estar entre 40 et 140 kg.",
+                   "es": "El peso corporal debe estar entre 40 et 140 кг.",
                    "ru": "Упс: вес тела должен быть от 40 до 140"},
     "err_reps": {"en": "Supported reps: 1..30.",
                  "de": "Unterstützte Wiederholungen: 1..30.",
@@ -649,6 +649,11 @@ class RowStrengthApp(toga.App):
                          (self.bar_page, T["mode_bar"][self.lang])],
                 style=Pack(flex=1)
             )
+        # Привязываем обработчик выбора вкладки для дополнительного нуджа на iOS
+        try:
+            self.tabs.on_select = self._on_tab_select
+        except Exception:
+            pass
 
         # Корень + заметный зазор между шапкой и вкладками
         spacer = toga.Box(style=Pack(height=16))
@@ -660,7 +665,7 @@ class RowStrengthApp(toga.App):
         # Показ полностью готового дерева
         self.main_window.content = root
 
-        # Невидимый «нудж» ScrollContainer
+        # Невидимый «нудж» ScrollContainer, чтобы не было «липкого левого края» на iOS
         self._nudge_scrollcontainers()
         if IS_IOS:
             loop = asyncio.get_event_loop()
@@ -692,6 +697,11 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
         _force_layout_ios(self.main_window)
+
+    # ---- Обработчик переключения вкладок (для iOS-нуджа) ----
+    def _on_tab_select(self, widget):
+        # Дополнительный нудж при переходе на любую вкладку, чтобы поля не «прилипали»
+        self._nudge_scrollcontainers()
 
     # ---- Обновление существующих заголовков (без пересчёта) ----
     def _update_existing_titles(self):
@@ -1068,8 +1078,11 @@ class RowStrengthApp(toga.App):
                 T["bar_tbl_title"][self.lang],
                 style=Pack(font_size=F_LABEL, color=CLR_ACCENT, padding_top=6, padding_bottom=2)
             )
-            self.bar_results_holder.add(toga.Box(children=[self.bar_tbl_title_label], style=S_ROW()))
+            self.bar_results_holder.add(tога.Box(children=[self.bar_tbl_title_label], style=S_ROW()))
             self.bar_results_holder.add(make_table(rows, col_flex=[1, 1]))
+
+            # Дополнительный нудж после обновления результатов на вкладке «Штанга»
+            self._nudge_scrollcontainers()
 
         except Exception as e:
             self._info(str(e))

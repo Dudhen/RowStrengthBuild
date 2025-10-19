@@ -57,7 +57,7 @@ T = {
     # сплэш теперь в 2 строки и по центру
     "splash": {l: " Dev by Dudhen:\n@arseny.dudhen" for l in LANGS},
     "title": {l: "RowStrength by Dudhen" for l in LANGS},
-    "mode_erg": {"en": "Ergometer", "de": "Ergometer", "fr": "Ergomètre", "es": "Ergómetro", "ru": "Эргометр"},
+    "mode_erg": {"en": "Ergometer", "de": "Ergometer", "fr": "Ergomètre", "es": "Ergométrо", "ru": "Эргометр"},
     "mode_bar": {"en": "Barbell", "de": "Langhantel", "fr": "Barre", "es": "Barra", "ru": "Штанга"},
     "language": {"en": "Language", "de": "Sprache", "fr": "Langue", "es": "Idioma", "ru": "Язык"},
     "gender": {"en": "Gender", "de": "Geschlecht", "fr": "Sexe", "es": "Sexo", "ru": "Пол"},
@@ -467,21 +467,6 @@ class RowStrengthApp(toga.App):
         self._clear_results_holder("erg")
         self._clear_results_holder("bar")
 
-    # ---- Вспомогательное: выбрать «лучшие» секунды с учётом предыдущего значения ----
-    def _choose_best_second(self, seconds_list, prev_sec_value: str) -> str:
-        try:
-            secs = list(seconds_list) or []
-            if not secs:
-                return "00"
-            if prev_sec_value in secs:
-                return prev_sec_value
-            # выбрать ближайшее по значению
-            p = int(prev_sec_value)
-            best = min(secs, key=lambda s: abs(int(s) - p))
-            return best
-        except Exception:
-            return (seconds_list[0] if seconds_list else "00")
-
     # ---- Основной UI ----
     def _build_main(self):
         # 1) Загружаем данные
@@ -756,25 +741,28 @@ class RowStrengthApp(toga.App):
             self._sec_value = old_sec
             self._cen_value = old_cen
 
-            # Перестроим списки и восстановим минуты/секунды аккуратно
+            # Перестроим списки и восстановим минуты (секунды не трогаем тут)
             self.min_sel.value = old_min
             self._rebuild_time_selects()
 
-            # Секунды: жёстко восстанавливаем (или ближайшее)
-            try:
-                g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
-                dist = int(self.distance.value)
-                dist_data = get_distance_data(g_key, dist, self.rowing_data)
-                _, sec_map = parse_available_times(dist_data)
-                seconds_for_min = sec_map.get(self._min_value, ["00"])
-                self.sec_sel.items = seconds_for_min
-                best_sec = self._choose_best_second(seconds_for_min, old_sec)
-                self.sec_sel.value = best_sec
-                self._sec_value = best_sec
-            except Exception:
-                pass
+            # ---- БЛОК СБРОСА СЕКУНД ПРИ СМЕНЕ ЯЗЫКА — ОТКЛЮЧЁН ----
+            # try:
+            #     g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
+            #     dist = int(self.distance.value)
+            #     dist_data = get_distance_data(g_key, dist, self.rowing_data)
+            #     _, sec_map = parse_available_times(dist_data)
+            #     seconds_for_min = sec_map.get(self._min_value, ["00"])
+            #     self.sec_sel.items = seconds_for_min
+            #     if old_sec in seconds_for_min:
+            #         self.sec_sel.value = old_sec
+            #         self._sec_value = old_sec
+            #     else:
+            #         self.sec_sel.value = seconds_for_min[0]
+            #         self._sec_value = seconds_for_min[0]
+            # except Exception:
+            #     pass
 
-            # Центы
+            # Центы оставляем как есть (без изменений списка)
             try:
                 centis_now = [row.value for row in list(self.cen_sel.items)] or []
                 if old_cen in centis_now:
@@ -884,7 +872,7 @@ class RowStrengthApp(toga.App):
     def _on_minute_change(self, widget):
         if self._updating:
             return
-        # Перестраиваем список секунд для выбранной минуты и НЕ сбрасываем, если возможно.
+        # Перестраиваем список секунд для выбранной минуты, НО не сбрасываем выбранное значение
         g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
         dist = int(self.distance.value)
         dist_data = get_distance_data(g_key, dist, self.rowing_data)
@@ -893,12 +881,11 @@ class RowStrengthApp(toga.App):
         seconds = sec_map.get(self._min_value, ["00"])
 
         self.sec_sel.items = seconds
-        # сохраняем прежние секунды или берём ближайшее
-        best_sec = self._choose_best_second(seconds, self._sec_value)
-        self.sec_sel.value = best_sec
-        self._sec_value = best_sec
+        # ---- СБРОС СЕКУНД ПРИ СМЕНЕ МИНУТЫ — ОТКЛЮЧЁН ----
+        # self.sec_sel.value = seconds[0]
+        # self._sec_value = seconds[0]
 
-        # На iOS синхронизируем поле секунд визуально
+        # На iOS синхронизируем поле секунд визуально (на случай багов отображения)
         self._ios_sync_selection_display(self.sec_sel)
 
     def _on_second_change(self, widget):
@@ -946,15 +933,20 @@ class RowStrengthApp(toga.App):
         if force_second_minute:
             default_sec = seconds[0]
         else:
-            # старайся сохранить текущие секунды
-            if self._erg_init_done:
-                default_sec = self._choose_best_second(seconds, self._sec_value)
-            else:
-                default_sec = seconds[0]
+            default_sec = seconds[0]
+            if self._erg_init_done and self._sec_value in seconds:
+                default_sec = self._sec_value
 
         self.sec_sel.items = seconds
-        self.sec_sel.value = default_sec
-        self._sec_value = default_sec
+        if force_second_minute:
+            # При принудительной перестройке (смена пола/дистанции) — оставляем старое поведение
+            self.sec_sel.value = default_sec
+            self._sec_value = default_sec
+        else:
+            # ---- СБРОС СЕКУНД ПРИ ОБЫЧНОЙ ПЕРЕСТРОЙКЕ (напр., смена языка) — ОТКЛЮЧЁН ----
+            # self.sec_sel.value = default_sec
+            # self._sec_value = default_sec
+            pass
 
     # ---- Расчёты ----
     def calculate_erg(self, widget):

@@ -34,7 +34,7 @@ CLR_ACCENT = "#6A5ACD"
 
 
 def S_MAIN():  return Pack(direction=COLUMN, padding=PAD_MAIN, flex=1)
-def S_ROW():   return Pack(direction=ROW, padding_bottom=6)
+def S_ROW():   return Pack(direction=ROW, padding_bottom=6, flex=1)  # <- РАСТЯЖЕНИЕ СТРОКИ
 def S_COL():   return Pack(direction=COLUMN)
 def S_HEAD():  return Pack(font_size=F_HEAD, padding_bottom=6)
 def S_LBL():   return Pack(font_size=F_LABEL, padding_right=8, flex=1)
@@ -204,7 +204,7 @@ def make_table(rows, col_flex=None):
     col_flex = col_flex or [1] * cols
     table = toga.Box(style=S_COL())
     for r in rows:
-        row = toga.Box(style=Pack(direction=ROW, background_color=CLR_TABLE_BG, padding=6))
+        row = toga.Box(style=Pack(direction=ROW, background_color=CLR_TABLE_BG, padding=6, flex=1))
         for i in range(cols):
             text = r[i] if i < len(r) else ""
             lbl = toga.Label(text, style=Pack(flex=col_flex[i], font_size=F_INPUT))
@@ -260,11 +260,6 @@ class RowStrengthApp(toga.App):
 
     # ===== Сервис: безопасная установка items с сохранением value =====
     def _set_selection_items_preserve(self, selection: toga.Selection, items, desired_value):
-        """
-        Установить список items для Selection, при этом сохранить выбранное значение.
-        Если desired_value отсутствует среди items — временно добавим его в начало,
-        чтобы UI не сбросил выбор. Далее можно будет скорректировать выбор вручную.
-        """
         try:
             items_list = [str(x) for x in (list(items) if items is not None else [])]
             desired = None if desired_value is None else str(desired_value)
@@ -280,7 +275,6 @@ class RowStrengthApp(toga.App):
                 selection.items = combined
                 selection.value = desired
         except Exception:
-            # best-effort возврат значения
             try:
                 if desired_value is not None:
                     selection.value = str(desired_value)
@@ -481,24 +475,49 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
-    # ---- удалить возможные «висячие» blur-вью внутри UIScrollView (iOS) ----
-    def _ios_strip_blurs_on(self, sc: toga.ScrollContainer | None):
-        if sys.platform != "ios" or sc is None:
+    # ---- удалить ВСЕ «висячие» blur-вью (кроме navbar/tabbar) ----
+    def _ios_strip_global_blurs(self):
+        if sys.platform != "ios":
             return
         try:
             from rubicon.objc import ObjCClass
             UIVisualEffectView = ObjCClass("UIVisualEffectView")
-            native = sc._impl.native
-            if native is None:
+            UINavigationBar = ObjCClass("UINavigationBar")
+            UITabBar = ObjCClass("UITabBar")
+
+            native_win = self.main_window._impl.native
+            root = getattr(native_win, "view", None)
+            if root is None:
                 return
-            # Проходим только непосредственных сабвью, чтобы не трогать навбар
-            subviews = list(native.subviews) if hasattr(native, "subviews") else []
-            for sv in subviews:
+
+            def _should_keep(view):
+                # не трогаем блюры в навбаре/таббаре
                 try:
-                    if sv.isKindOfClass_(UIVisualEffectView):
-                        sv.removeFromSuperview()
+                    parent = view.superview
+                    while parent is not None:
+                        if parent.isKindOfClass_(UINavigationBar) or parent.isKindOfClass_(UITabBar):
+                            return True
+                        parent = parent.superview if hasattr(parent, "superview") else None
                 except Exception:
                     pass
+                return False
+
+            def _walk(v):
+                try:
+                    subs = list(v.subviews)
+                except Exception:
+                    subs = []
+                for sv in subs:
+                    try:
+                        if sv.isKindOfClass_(UIVisualEffectView) and not _should_keep(sv):
+                            sv.removeFromSuperview()
+                            # не уходим вглубь удалённой ветки
+                            continue
+                    except Exception:
+                        pass
+                    _walk(sv)
+
+            _walk(root)
         except Exception:
             pass
 
@@ -507,46 +526,37 @@ class RowStrengthApp(toga.App):
         if not IS_IOS or self.bar_col is None or self.tabs is None:
             return
         try:
-            # 1) На всякий случай уберём возможные blur-вью со старого скролла
-            self._ios_strip_blurs_on(self.bar_page)
+            # 1) На всякий случай подчистим возможные blur-вью
+            self._ios_strip_global_blurs()
         except Exception:
             pass
         try:
-            # 2) Пересобираем сам ScrollContainer
             new_sc = toga.ScrollContainer(content=self.bar_col, horizontal=False, style=Pack(flex=1))
             self.bar_page = new_sc
-            # 3) Подменяем контент вкладки «Штанга» (второй таб)
             try:
                 items = list(self.tabs.content)
-                # Поддержка обеих сигнатур OptionContainer
                 try:
                     items[1].content = new_sc
                 except Exception:
-                    # Старый API: items — пары (title, content), придётся пересобрать
                     try:
                         self.tabs.content = [(T["mode_erg"][self.lang], self.erg_page),
                                              (T["mode_bar"][self.lang], new_sc)]
                     except Exception:
-                        # Альтернативная сигнатура
                         self.tabs.content = [(self.erg_page, T["mode_erg"][self.lang]),
                                              (new_sc, T["mode_bar"][self.lang])]
             except Exception:
                 pass
-            # 4) Форсим лэйаут
             self._deep_refresh(self.main_window.content)
             _force_layout_ios(self.main_window)
         except Exception:
             pass
 
-    # ---- гарантированный прогон лэйаута «Штанги» (первый заход/после языка) ----
+    # ---- гарантированный прогон лэйаута «Штанги» ----
     def _ensure_bar_layout(self):
         if self.bar_page is None or self.bar_col is None:
             return
-        # 0) небольшой «визуальный» пинок через Selection «упражнение»
-        try:
-            self._ios_sync_selection_display(self.exercise)
-        except Exception:
-            pass
+        # 0) убираем любые «заблудшие» blur-слои
+        self._ios_strip_global_blurs()
         # 1) локальный детач/аттач контента скролла
         try:
             old = self.bar_page.content
@@ -555,7 +565,7 @@ class RowStrengthApp(toga.App):
             self.bar_page.content = old
         except Exception:
             pass
-        # 2) микроспейсер в колонке — как триггер перерасчёта AutoLayout
+        # 2) микроспейсер в колонке — триггер перерасчёта AutoLayout
         try:
             temp = toga.Box(style=Pack(height=1, padding=0))
             self.bar_col.add(temp)
@@ -567,7 +577,8 @@ class RowStrengthApp(toga.App):
         if IS_IOS:
             loop = asyncio.get_event_loop()
             for dt in (0.02, 0.06, 0.12, 0.20):
-                loop.call_later(dt, lambda: self._ios_strong_nudge_scrollcontainer(self.bar_page))
+                loop.call_later(dt, lambda: (self._ios_strip_global_blurs(),
+                                             self._ios_strong_nudge_scrollcontainer(self.bar_page)))
 
     # ---- надёжная очистка контейнера результатов ----
     def _really_clear_holder_children(self, holder: toga.Box | None):
@@ -638,7 +649,7 @@ class RowStrengthApp(toga.App):
             "RowStrength by Dudhen",
             style=Pack(font_size=F_HEAD, color="#501c59", text_align="center", padding_top=8, padding_bottom=4)
         )
-        top_row = toga.Box(style=Pack(direction=ROW, padding_top=6, padding_bottom=4, background_color=CLR_HEADER_BG))
+        top_row = toga.Box(style=Pack(direction=ROW, padding_top=6, padding_bottom=4, background_color=CLR_HEADER_BG, flex=1))
         top_row.add(toga.Box(style=Pack(flex=1)))
         top_row.add(self.header_dev_label)
         top_row.add(toga.Box(style=Pack(flex=1)))
@@ -654,7 +665,7 @@ class RowStrengthApp(toga.App):
             T["language"][self.lang],
             style=Pack(font_size=F_LABEL, padding_left=8, padding_right=6)
         )
-        lang_row = toga.Box(style=Pack(direction=ROW, padding_top=2, padding_bottom=6, background_color=CLR_HEADER_BG))
+        lang_row = toga.Box(style=Pack(direction=ROW, padding_top=2, padding_bottom=6, background_color=CLR_HEADER_BG, flex=1))
         lang_row.add(toga.Box(style=Pack(flex=1)))
         lang_row.add(self.header_lang_label)
         lang_row.add(self.lang_sel)
@@ -819,7 +830,7 @@ class RowStrengthApp(toga.App):
     def _on_tab_select(self, widget, option=None):
         self._dismiss_ios_inputs()
 
-        # Выясняем, что выбрана именно вкладка «Штанга»
+        # Определяем, что выбрана именно вкладка «Штанга»
         is_bar = False
         try:
             if option is not None:
@@ -831,11 +842,10 @@ class RowStrengthApp(toga.App):
             pass
 
         if IS_IOS and is_bar:
-            # Полная пересборка + гарантированный прогон лэйаута
+            self._ios_strip_global_blurs()
             self._ios_recreate_bar_page()
             self._ensure_bar_layout()
 
-        # Небольшой общий нудж (безопасен и на десктопах)
         self._nudge_scrollcontainers()
 
     # ---- Обновление существующих заголовков (без пересчёта) ----
@@ -911,10 +921,8 @@ class RowStrengthApp(toga.App):
             self._cen_value = old_cen
 
             self.min_sel.value = old_min
-            # Перестроим списки, сохранив секунды
             self._rebuild_time_selects(force_second_minute=False, preserve_sec=True)
 
-            # Центы (оставляем прежние)
             try:
                 centis_now = [row.value for row in list(self.cen_sel.items)] or []
                 if old_cen in centis_now:
@@ -927,10 +935,10 @@ class RowStrengthApp(toga.App):
             self._clear_all_results()
             self._nudge_scrollcontainers()
 
-            # iOS: дополнительно пересобираем «Штангу», затем принудительно прогоняем её лэйаут
+            # iOS: подчистим блюры и заранее подготовим «Штангу»
             if IS_IOS:
+                self._ios_strip_global_blurs()
                 self._ios_recreate_bar_page()
-                # ставим на короткие таймеры повторный прогон (надёжно после смены языка)
                 self._ensure_bar_layout()
                 loop = asyncio.get_event_loop()
                 loop.call_later(0.03, self._ensure_bar_layout)
@@ -1033,7 +1041,6 @@ class RowStrengthApp(toga.App):
     def _on_minute_change(self, widget):
         if self._updating:
             return
-        # Перестроим список секунд для выбранной минуты, С ОХРАНОЙ текущего значения
         g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
         dist = int(self.distance.value)
         dist_data = get_distance_data(g_key, dist, self.rowing_data)
@@ -1044,13 +1051,11 @@ class RowStrengthApp(toga.App):
 
         old_sec = self._sec_value
         self._set_selection_items_preserve(self.sec_sel, seconds, old_sec)
-        # Зафиксируем фактическое значение (вдруг Toga поправила его)
         try:
             self._sec_value = self.sec_sel.value
         except Exception:
             pass
 
-        # iOS: синхронизируем визуально
         self._ios_sync_selection_display(self.sec_sel)
 
     def _on_second_change(self, widget):
@@ -1097,12 +1102,10 @@ class RowStrengthApp(toga.App):
         seconds = sec_map.get(default_min, ["00"])
 
         if force_second_minute and not preserve_sec:
-            # Жёсткий режим: выбрать дефолт и зафиксировать
             default_sec = seconds[0]
             self._set_selection_items_preserve(self.sec_sel, seconds, default_sec)
             self._sec_value = default_sec
         else:
-            # Сохранить текущее значение секунд
             self._set_selection_items_preserve(self.sec_sel, seconds, self._sec_value)
             try:
                 self._sec_value = self.sec_sel.value
@@ -1170,7 +1173,6 @@ class RowStrengthApp(toga.App):
             self.erg_results_holder.add(toga.Box(children=[self.erg_tbl2_title_label], style=S_ROW()))
             self.erg_results_holder.add(make_table(rows2, col_flex=[1, 1]))
 
-            # На всякий случай — после расчёта на Эргометре подготовим чистую «Штангу»
             if IS_IOS:
                 self._ios_recreate_bar_page()
 

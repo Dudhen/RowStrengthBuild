@@ -49,12 +49,14 @@ def S_INP(w=None, is_lang=None):
 
 def S_BTN():   return Pack(padding_top=10, padding_bottom=10, padding_left=12, padding_right=12, flex=1)
 
+# Новый: внешняя рамка-«каркас» вкладки — центрирует контент и задаёт боковые поля
+def S_PAGE_FRAME():  return Pack(direction=ROW, flex=1, padding_left=PAD_MAIN, padding_right=PAD_MAIN)
+
 
 # -------- Локализация --------
 LANGS = ["en", "de", "fr", "es", "ru"]
 LANG_LABEL = {"en": "English", "de": "Deutsch", "fr": "Français", "es": "Español", "ru": "Русский"}
 T = {
-    # сплэш теперь в 2 строки и по центру
     "splash": {l: " Dev by Dudhen:\n@arseny.dudhen" for l in LANGS},
     "title": {l: "RowStrength by Dudhen" for l in LANGS},
     "mode_erg": {"en": "Ergometer", "de": "Ergometer", "fr": "Ergomètre", "es": "Ergometrо", "ru": "Эргометр"},
@@ -74,7 +76,6 @@ T = {
                    "ru": "   Вес на штанге (кг)"},
     "reps": {"en": "   Reps", "de": "   Wdh.", "fr": "   Répétitions", "es": "   Reps", "ru": "   Повторы"},
     "calc": {"en": "Calculate", "de": "Berechnen", "fr": "Calculer", "es": "Calcular", "ru": "Рассчитать"},
-    # Заголовки таблиц
     "erg_tbl1_title": {
         "en": "  Results across distances",
         "de": "  Ergebnisse über Distanzen",
@@ -100,8 +101,7 @@ T = {
     "tbl_2k": {"en": "2k ergometer", "de": "2 km Ergo", "fr": "Ergo 2 km", "es": "Ergo 2 km", "ru": "2км эргометр"},
     "ex_bench": {"en": "Bench press", "de": "Bankdrücken", "fr": "Développé couché", "es": "Press banca", "ru": "Жим"},
     "ex_squat": {"en": "Squat", "de": "Knieбеuge", "fr": "Squat", "es": "Sentadilla", "ru": "Присед"},
-    "ex_deadlift": {"en": "Deadlift", "de": "Kreuzheben", "fr": "Soulevé de terre", "es": "Peso muerto",
-                    "ru": "Становая тяга"},
+    "ex_deadlift": {"en": "Deadlift", "de": "Kreuzheben", "fr": "Soulevé de terre", "es": "Peso muerto", "ru": "Становая тяга"},
     "err_title": {"en": "Notice", "de": "Hinweis", "fr": "Avis", "es": "Aviso", "ru": "Упс"},
     "err_weight": {"en": "Body weight must be between 40 and 140 kg.",
                    "de": "Körpergewicht muss zwischen 40 und 140 kg liegen.",
@@ -242,8 +242,10 @@ class RowStrengthApp(toga.App):
         # держим ссылки на страницы/колонки/табы
         self.erg_page = None
         self.erg_col = None
+        self.erg_frame = None   # новый центрирующий каркас
         self.bar_page = None
         self.bar_col = None
+        self.bar_frame = None   # новый центрирующий каркас
         self.tabs = None
         # Виджеты хедера
         self.header_dev_label = None
@@ -495,20 +497,27 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
+    # ---- центрирующий каркас вокруг колонки ----
+    def _page_frame(self, inner_col: toga.Box) -> toga.Box:
+        frame = toga.Box(style=S_PAGE_FRAME())
+        frame.add(toga.Box(style=Pack(flex=1)))       # левый spacer
+        frame.add(inner_col)                          # контент фиксированной ширины
+        frame.add(toga.Box(style=Pack(flex=1)))       # правый spacer
+        return frame
+
     # ---- полная безопасная пересборка ScrollContainer «Штанги» (iOS) ----
     def _ios_recreate_bar_page(self):
-        if not IS_IOS or self.bar_col is None or self.tabs is None:
+        if not IS_IOS or self.bar_frame is None or self.tabs is None:
             return
         try:
-            # 1) На всякий случай уберём возможные blur-вью со старого скролла
             self._ios_strip_blurs_on(self.bar_page)
         except Exception:
             pass
         try:
-            # 2) Пересобираем сам ScrollContainer
-            new_sc = toga.ScrollContainer(content=self.bar_col, horizontal=False, style=Pack(flex=1))
+            # Пересобираем ScrollContainer на базе того же frame
+            new_sc = toga.ScrollContainer(content=self.bar_frame, horizontal=False, style=Pack(flex=1))
             self.bar_page = new_sc
-            # 3) Подменяем контент вкладки «Штанга»
+            # Подменяем контент вкладки «Штанга»
             try:
                 items = list(self.tabs.content)
                 try:
@@ -522,11 +531,11 @@ class RowStrengthApp(toga.App):
                                              (new_sc, T["mode_bar"][self.lang])]
             except Exception:
                 pass
-            # 4) Сразу «сильно нуджим» новый скролл и общий лэйаут
+            # Серия сильных нуджей
             self._ios_strong_nudge_scrollcontainer(self.bar_page)
             if IS_IOS:
                 loop = asyncio.get_event_loop()
-                for dt in (0.02, 0.08, 0.18, 0.30):
+                for dt in (0.02, 0.06, 0.12, 0.20, 0.30):
                     loop.call_later(dt, lambda: self._ios_strong_nudge_scrollcontainer(self.bar_page))
         except Exception:
             pass
@@ -675,8 +684,9 @@ class RowStrengthApp(toga.App):
             toga.Box(children=[self.btn_erg], style=S_ROW()),
             self.erg_results_holder,
         ]
-        self.erg_col = toga.Box(children=erg_rows, style=Pack(direction=COLUMN, flex=1))
-        self.erg_page = toga.ScrollContainer(content=self.erg_col, horizontal=False, style=Pack(flex=1))
+        self.erg_col = toga.Box(children=erg_rows, style=Pack(direction=COLUMN, flex=0))
+        self.erg_frame = self._page_frame(self.erg_col)  # << центрирующий каркас
+        self.erg_page = toga.ScrollContainer(content=self.erg_frame, horizontal=False, style=Pack(flex=1))
 
         # ===== Вкладка Штанга =====
         self.gender_b_lbl = toga.Label(T["gender"][self.lang], style=S_LBL())
@@ -712,8 +722,9 @@ class RowStrengthApp(toga.App):
             toga.Box(children=[self.btn_bar], style=S_ROW()),
             self.bar_results_holder,
         ]
-        self.bar_col = toga.Box(children=bar_rows, style=Pack(direction=COLUMN, flex=1))
-        self.bar_page = toga.ScrollContainer(content=self.bar_col, horizontal=False, style=Pack(flex=1))
+        self.bar_col = toga.Box(children=bar_rows, style=Pack(direction=COLUMN, flex=0))
+        self.bar_frame = self._page_frame(self.bar_col)  # << центрирующий каркас
+        self.bar_page = toga.ScrollContainer(content=self.bar_frame, horizontal=False, style=Pack(flex=1))
 
         # Tabs
         try:
@@ -750,6 +761,8 @@ class RowStrengthApp(toga.App):
             loop = asyncio.get_event_loop()
             loop.call_later(0.02, self._nudge_scrollcontainers)
             loop.call_later(0.10, self._nudge_scrollcontainers)
+            # Сразу усилим лэйаут «Штанги», чтобы при первом заходе всё было ок:
+            loop.call_later(0.03, lambda: self._ios_recreate_bar_page())
 
         # Тихие iOS-фиксы клавиатуры и синхронизации Selection
         self._apply_ios_keyboard_types()
@@ -780,6 +793,7 @@ class RowStrengthApp(toga.App):
     # ---- Обработчик переключения вкладок (iOS: де-блюр + сильный нудж) ----
     def _on_tab_select(self, widget, option=None):
         self._dismiss_ios_inputs()
+        # При переходе на «Штангу» прогоняем надёжную последовательность:
         if IS_IOS:
             self._ios_recreate_bar_page()  # пересборка + серия сильных нуджей внутри
         self._nudge_scrollcontainers()

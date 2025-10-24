@@ -3,12 +3,12 @@ name = "RowStrength by Dudhen"
 version = "1.0.0"
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.12"                # можно оставить <3.11, но 0.5.2 поддерживает и 3.11/3.12
-toga-cocoa = "0.5.2"
+python = ">=3.10,<3.11"
+toga-cocoa = "0.4.4"
 std-nslog = "1.0.0"
-toga-winforms = "0.5.2"
-toga-ios = "0.5.2"
-rubicon-objc = "0.5.2"
+toga-winforms = "0.4.4"
+toga-ios = "0.4.4"
+rubicon-objc = "0.4.7"
 
 [tool.briefcase]
 project_name = "RowStrength by Dudhen"
@@ -27,22 +27,22 @@ sources = ["rowstrength"]
 [tool.briefcase.app.rowstrength.macOS]
 supported = true
 requires = [
-  "toga-cocoa==0.5.2",
+  "toga-cocoa>=0.4.4",
   "std-nslog>=1.0.0"
 ]
 
 # Windows (десктоп)
 [tool.briefcase.app.rowstrength.windows]
 supported = true
-requires = ["toga-winforms==0.5.2"]
+requires = ["toga-winforms>=0.4.4"]
 
 # iOS (стор/симулятор)
 [tool.briefcase.app.rowstrength.iOS]
 supported = true
 requires = [
-  "toga-ios==0.5.2",
+  "toga-ios>=0.4.4",
   "std-nslog>=1.0.0",
-  "rubicon-objc==0.5.2"
+  "rubicon-objc>=0.4.7,<0.5"
 ]
 ios_deployment_target = "14.0"
 

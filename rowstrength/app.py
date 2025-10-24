@@ -247,6 +247,7 @@ class RowStrengthApp(toga.App):
         self.erg_col = None
         self.bar_page = None
         self.bar_col = None
+        self.tabs = None
         # Виджеты хедера
         self.header_dev_label = None
         self.header_lang_label = None
@@ -312,7 +313,7 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
-    # ========== iOS: синхронизация отображаемого текста Selection с выбранным значением ==========
+    # ========== iOS: синхронизация отображаемого текста Selection ==========
     def _ios_sync_selection_display(self, selection_widget: toga.Selection, index: int | None = None):
         if sys.platform != "ios":
             return
@@ -452,34 +453,58 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
-    # ---- «сильный нудж» конкретного ScrollContainer (iOS) ----
-    def _ios_strong_nudge_scrollcontainer(self, sc: toga.ScrollContainer | None):
+    # ---- удалить возможные «висячие» blur-вью внутри UIScrollView (iOS) ----
+    def _ios_strip_blurs_on(self, sc: toga.ScrollContainer | None):
         if sys.platform != "ios" or sc is None:
             return
         try:
-            # 1) Переставить контент туда-обратно
-            old = sc.content
-            dummy = toga.Box(style=Pack())
-            sc.content = dummy
-            sc.content = old
-        except Exception:
-            pass
-        try:
-            # 2) Форснуть лэйаут нативного UIScrollView
+            from rubicon.objc import ObjCClass
+            UIVisualEffectView = ObjCClass("UIVisualEffectView")
             native = sc._impl.native
-            if native is not None:
+            if native is None:
+                return
+            # Проходим только непосредственных сабвью, чтобы не трогать навбар
+            subviews = list(native.subviews) if hasattr(native, "subviews") else []
+            for sv in subviews:
                 try:
-                    native.setNeedsLayout()
-                    native.layoutIfNeeded()
+                    if sv.isKindOfClass_(UIVisualEffectView):
+                        sv.removeFromSuperview()
                 except Exception:
                     pass
         except Exception:
             pass
+
+    # ---- полная безопасная пересборка ScrollContainer «Штанги» (iOS) ----
+    def _ios_recreate_bar_page(self):
+        if not IS_IOS or self.bar_col is None or self.tabs is None:
+            return
         try:
-            sc.refresh()
+            # 1) На всякий случай уберём возможные blur-вью со старого скролла
+            self._ios_strip_blurs_on(self.bar_page)
         except Exception:
             pass
         try:
+            # 2) Пересобираем сам ScrollContainer
+            new_sc = toga.ScrollContainer(content=self.bar_col, horizontal=False, style=Pack(flex=1))
+            self.bar_page = new_sc
+            # 3) Подменяем контент вкладки «Штанга» (второй таб)
+            try:
+                items = list(self.tabs.content)
+                # Поддержка обеих сигнатур OptionContainer
+                try:
+                    items[1].content = new_sc
+                except Exception:
+                    # Старый API: items — пары (title, content), придётся пересобрать
+                    try:
+                        self.tabs.content = [(T["mode_erg"][self.lang], self.erg_page),
+                                             (T["mode_bar"][self.lang], new_sc)]
+                    except Exception:
+                        # Альтернативная сигнатура
+                        self.tabs.content = [(self.erg_page, T["mode_erg"][self.lang]),
+                                             (new_sc, T["mode_bar"][self.lang])]
+            except Exception:
+                pass
+            # 4) Форсим лэйаут
             self._deep_refresh(self.main_window.content)
             _force_layout_ios(self.main_window)
         except Exception:
@@ -682,7 +707,7 @@ class RowStrengthApp(toga.App):
                          (self.bar_page, T["mode_bar"][self.lang])],
                 style=Pack(flex=1)
             )
-        # Привязываем обработчик выбора вкладки для дополнительного нуджа на iOS
+        # Обработчик выбора вкладки: убираем клавиатуру, пересобираем «Штангу» и слегка нуджим лэйаут
         try:
             self.tabs.on_select = self._on_tab_select
         except Exception:
@@ -702,11 +727,8 @@ class RowStrengthApp(toga.App):
         self._nudge_scrollcontainers()
         if IS_IOS:
             loop = asyncio.get_event_loop()
-            # Немного «импульсов» для обоих, плюс отдельный "сильный" для бара
             loop.call_later(0.02, self._nudge_scrollcontainers)
             loop.call_later(0.10, self._nudge_scrollcontainers)
-            loop.call_later(0.03, lambda: self._ios_strong_nudge_scrollcontainer(self.bar_page))
-            loop.call_later(0.15, lambda: self._ios_strong_nudge_scrollcontainer(self.bar_page))
 
         # Тихие iOS-фиксы клавиатуры и синхронизации Selection
         self._apply_ios_keyboard_types()
@@ -734,14 +756,14 @@ class RowStrengthApp(toga.App):
             pass
         _force_layout_ios(self.main_window)
 
-    # ---- Обработчик переключения вкладок (для iOS-нуджа) ----
+    # ---- Обработчик переключения вкладок (iOS: де-блюр + нудж) ----
     def _on_tab_select(self, widget, option=None):
-        # Мягкий нудж для обоих + серия сильных импульсов именно для «Штанги»
-        self._nudge_scrollcontainers()
+        self._dismiss_ios_inputs()
+        # На iOS при каждом заходе на «Штангу» полностью пересобираем её ScrollContainer —
+        # это устраняет возможные «затуманивания» от висячих эффектов.
         if IS_IOS:
-            loop = asyncio.get_event_loop()
-            for dt in (0.0, 0.02, 0.08, 0.18, 0.30):
-                loop.call_later(dt, lambda: self._ios_strong_nudge_scrollcontainer(self.bar_page))
+            self._ios_recreate_bar_page()
+        self._nudge_scrollcontainers()
 
     # ---- Обновление существующих заголовков (без пересчёта) ----
     def _update_existing_titles(self):
@@ -831,12 +853,10 @@ class RowStrengthApp(toga.App):
             # Чистим результаты и слегка «пинаем» лэйаут
             self._clear_all_results()
             self._nudge_scrollcontainers()
-            # И отдельно — сильный нудж для «Штанги»
-            self._ios_strong_nudge_scrollcontainer(self.bar_page)
+
+            # iOS: дополнительно пересобираем «Штангу», чтобы исключить любые висячие эффекты
             if IS_IOS:
-                loop = asyncio.get_event_loop()
-                loop.call_later(0.02, lambda: self._ios_strong_nudge_scrollcontainer(self.bar_page))
-                loop.call_later(0.10, lambda: self._ios_strong_nudge_scrollcontainer(self.bar_page))
+                self._ios_recreate_bar_page()
 
             # Второй проход (отложенно): синхронизация визуала
             def _second_pass():
@@ -1072,6 +1092,10 @@ class RowStrengthApp(toga.App):
             self.erg_results_holder.add(toga.Box(children=[self.erg_tbl2_title_label], style=S_ROW()))
             self.erg_results_holder.add(make_table(rows2, col_flex=[1, 1]))
 
+            # На всякий случай — после расчёта на Эргометре подготовим чистую «Штангу»
+            if IS_IOS:
+                self._ios_recreate_bar_page()
+
         except Exception as e:
             self._info(str(e))
 
@@ -1126,13 +1150,6 @@ class RowStrengthApp(toga.App):
             )
             self.bar_results_holder.add(toga.Box(children=[self.bar_tbl_title_label], style=S_ROW()))
             self.bar_results_holder.add(make_table(rows, col_flex=[1, 1]))
-
-            # Дополнительный нудж после обновления результатов на вкладке «Штанга»
-            self._ios_strong_nudge_scrollcontainer(self.bar_page)
-            if IS_IOS:
-                loop = asyncio.get_event_loop()
-                for dt in (0.02, 0.10, 0.20):
-                    loop.call_later(dt, lambda: self._ios_strong_nudge_scrollcontainer(self.bar_page))
 
         except Exception as e:
             self._info(str(e))

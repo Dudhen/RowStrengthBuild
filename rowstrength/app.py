@@ -787,6 +787,13 @@ class RowStrengthApp(toga.App):
             loop.call_later(0.02, self._nudge_scrollcontainers)
             loop.call_later(0.10, self._nudge_scrollcontainers)
 
+        # FIX(iOS layout): Однократный «прогрев» скрытой вкладки «Штанга»
+        # Выполняется сразу после сборки UI, пока вкладка ещё не отображена.
+        # Это форсирует первичный лэйаут и устраняет «прилипание» строк к левому краю
+        # при первом заходе на вкладку.
+        if IS_IOS:
+            self._ensure_bar_ready_once()
+
         # Тихие iOS-фиксы клавиатуры и синхронизации Selection
         self._apply_ios_keyboard_types()
         if IS_IOS:

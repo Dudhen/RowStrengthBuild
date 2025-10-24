@@ -96,15 +96,12 @@ T = {
         "es": "  1RM\n  y equivalente de ergómetro 2 km",
         "ru": "  Разовый максимум\n  и эквивалент на эргометре 2км",
     },
-    # Табличные подписи
     "tbl_1rm": {"en": "1 rep max", "de": "1RM", "fr": "1 RM", "es": "1RM", "ru": "Разовый максимум"},
     "tbl_2k": {"en": "2k ergometer", "de": "2 km Ergo", "fr": "Ergo 2 km", "es": "Ergo 2 km", "ru": "2км эргометр"},
-    # Упражнения
     "ex_bench": {"en": "Bench press", "de": "Bankdrücken", "fr": "Développé couché", "es": "Press banca", "ru": "Жим"},
     "ex_squat": {"en": "Squat", "de": "Knieбеuge", "fr": "Squat", "es": "Sentadilla", "ru": "Присед"},
     "ex_deadlift": {"en": "Deadlift", "de": "Kreuzheben", "fr": "Soulevé de terre", "es": "Peso muerto",
                     "ru": "Становая тяга"},
-    # Ошибки
     "err_title": {"en": "Notice", "de": "Hinweis", "fr": "Avis", "es": "Aviso", "ru": "Упс"},
     "err_weight": {"en": "Body weight must be between 40 and 140 kg.",
                    "de": "Körpergewicht muss zwischen 40 und 140 kg liegen.",
@@ -453,6 +450,37 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
+    # ---- «сильный нудж» конкретного ScrollContainer (iOS) ----
+    def _ios_strong_nudge_scrollcontainer(self, sc: toga.ScrollContainer | None):
+        if sys.platform != "ios" or sc is None:
+            return
+        try:
+            old = sc.content
+            dummy = toga.Box(style=Pack())
+            sc.content = dummy
+            sc.content = old
+        except Exception:
+            pass
+        try:
+            native = sc._impl.native
+            if native is not None:
+                try:
+                    native.setNeedsLayout()
+                    native.layoutIfNeeded()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            sc.refresh()
+        except Exception:
+            pass
+        try:
+            self._deep_refresh(self.main_window.content)
+            _force_layout_ios(self.main_window)
+        except Exception:
+            pass
+
     # ---- удалить возможные «висячие» blur-вью внутри UIScrollView (iOS) ----
     def _ios_strip_blurs_on(self, sc: toga.ScrollContainer | None):
         if sys.platform != "ios" or sc is None:
@@ -509,6 +537,37 @@ class RowStrengthApp(toga.App):
             _force_layout_ios(self.main_window)
         except Exception:
             pass
+
+    # ---- гарантированный прогон лэйаута «Штанги» (первый заход/после языка) ----
+    def _ensure_bar_layout(self):
+        if self.bar_page is None or self.bar_col is None:
+            return
+        # 0) небольшой «визуальный» пинок через Selection «упражнение»
+        try:
+            self._ios_sync_selection_display(self.exercise)
+        except Exception:
+            pass
+        # 1) локальный детач/аттач контента скролла
+        try:
+            old = self.bar_page.content
+            dummy = toga.Box(style=Pack())
+            self.bar_page.content = dummy
+            self.bar_page.content = old
+        except Exception:
+            pass
+        # 2) микроспейсер в колонке — как триггер перерасчёта AutoLayout
+        try:
+            temp = toga.Box(style=Pack(height=1, padding=0))
+            self.bar_col.add(temp)
+            self.bar_col.remove(temp)
+        except Exception:
+            pass
+        # 3) цепочка сильных нуджей
+        self._ios_strong_nudge_scrollcontainer(self.bar_page)
+        if IS_IOS:
+            loop = asyncio.get_event_loop()
+            for dt in (0.02, 0.06, 0.12, 0.20):
+                loop.call_later(dt, lambda: self._ios_strong_nudge_scrollcontainer(self.bar_page))
 
     # ---- надёжная очистка контейнера результатов ----
     def _really_clear_holder_children(self, holder: toga.Box | None):
@@ -707,7 +766,7 @@ class RowStrengthApp(toga.App):
                          (self.bar_page, T["mode_bar"][self.lang])],
                 style=Pack(flex=1)
             )
-        # Обработчик выбора вкладки: убираем клавиатуру, пересобираем «Штангу» и слегка нуджим лэйаут
+        # Обработчик выбора вкладки
         try:
             self.tabs.on_select = self._on_tab_select
         except Exception:
@@ -756,13 +815,27 @@ class RowStrengthApp(toga.App):
             pass
         _force_layout_ios(self.main_window)
 
-    # ---- Обработчик переключения вкладок (iOS: де-блюр + нудж) ----
+    # ---- Обработчик переключения вкладок (iOS: «жёсткий» прогон для Штанги) ----
     def _on_tab_select(self, widget, option=None):
         self._dismiss_ios_inputs()
-        # На iOS при каждом заходе на «Штангу» полностью пересобираем её ScrollContainer —
-        # это устраняет возможные «затуманивания» от висячих эффектов.
-        if IS_IOS:
+
+        # Выясняем, что выбрана именно вкладка «Штанга»
+        is_bar = False
+        try:
+            if option is not None:
+                if option is self.bar_page:
+                    is_bar = True
+                elif hasattr(option, "content") and option.content is self.bar_page:
+                    is_bar = True
+        except Exception:
+            pass
+
+        if IS_IOS and is_bar:
+            # Полная пересборка + гарантированный прогон лэйаута
             self._ios_recreate_bar_page()
+            self._ensure_bar_layout()
+
+        # Небольшой общий нудж (безопасен и на десктопах)
         self._nudge_scrollcontainers()
 
     # ---- Обновление существующих заголовков (без пересчёта) ----
@@ -854,11 +927,16 @@ class RowStrengthApp(toga.App):
             self._clear_all_results()
             self._nudge_scrollcontainers()
 
-            # iOS: дополнительно пересобираем «Штангу», чтобы исключить любые висячие эффекты
+            # iOS: дополнительно пересобираем «Штангу», затем принудительно прогоняем её лэйаут
             if IS_IOS:
                 self._ios_recreate_bar_page()
+                # ставим на короткие таймеры повторный прогон (надёжно после смены языка)
+                self._ensure_bar_layout()
+                loop = asyncio.get_event_loop()
+                loop.call_later(0.03, self._ensure_bar_layout)
+                loop.call_later(0.10, self._ensure_bar_layout)
 
-            # Второй проход (отложенно): синхронизация визуала
+            # Второй проход (отложенно): синхронизация визуала на Эргометре
             def _second_pass():
                 self._clear_all_results()
                 self._update_existing_titles()

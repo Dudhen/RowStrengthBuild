@@ -545,6 +545,106 @@ class RowStrengthApp(toga.App):
         except Exception:
             pass
 
+    # FIX(iOS layout): «тёплое» переключение на вкладку «Штанга» и обратно
+    def _ios_warm_select_bar(self):
+        if not IS_IOS or self.tabs is None:
+            return
+        try:
+            initial = getattr(self.tabs, "current_tab", None)
+        except Exception:
+            initial = None
+
+        switched = False
+        # Пытаемся через current_tab разными способами
+        try:
+            self.tabs.current_tab = self.bar_page
+            switched = True
+        except Exception:
+            try:
+                self.tabs.current_tab = self.bar_col
+                switched = True
+            except Exception:
+                try:
+                    # Попробуем через OptionItem
+                    items = list(self.tabs.content)
+                    bar_item = None
+                    erg_item = None
+                    for it in items:
+                        if getattr(it, "content", None) is self.bar_page or getattr(it, "content", None) is self.bar_col:
+                            bar_item = it
+                        if getattr(it, "content", None) is self.erg_page or getattr(it, "content", None) is self.erg_col:
+                            erg_item = it
+                    if bar_item is not None:
+                        self.tabs.current_tab = bar_item
+                        switched = True
+                except Exception:
+                    pass
+
+        _force_layout_ios(self.main_window)
+        self._nudge_scrollcontainers()
+
+        # Возврат на исходный таб
+        if switched:
+            try:
+                if initial is not None:
+                    self.tabs.current_tab = initial
+            except Exception:
+                pass
+        else:
+            # Фоллбек: временно меняем порядок content и возвращаем
+            try:
+                self.tabs.content = [(T["mode_bar"][self.lang], self.bar_page),
+                                     (T["mode_erg"][self.lang], self.erg_page)]
+                _force_layout_ios(self.main_window)
+                self._nudge_scrollcontainers()
+                self.tabs.content = [(T["mode_erg"][self.lang], self.erg_page),
+                                     (T["mode_bar"][self.lang], self.bar_page)]
+            except Exception:
+                try:
+                    self.tabs.content = [(self.bar_page, T["mode_bar"][self.lang]),
+                                         (self.erg_page, T["mode_erg"][self.lang])]
+                    _force_layout_ios(self.main_window)
+                    self._nudge_scrollcontainers()
+                    self.tabs.content = [(self.erg_page, T["mode_erg"][self.lang]),
+                                         (self.bar_page, T["mode_bar"][self.lang])]
+                except Exception:
+                    pass
+        _force_layout_ios(self.main_window)
+
+    # FIX(iOS layout): «фальш-пересчёт» в контейнере результатов «Штанги»
+    def _ios_fake_recalc_bar(self):
+        if not IS_IOS or self.bar_results_holder is None:
+            return
+        try:
+            temp_title = toga.Label(" ")
+            temp_tbl = make_table([[""]])
+            # Временно наполняем holder
+            self.bar_results_holder.add(toga.Box(children=[temp_title], style=S_ROW()))
+            self.bar_results_holder.add(temp_tbl)
+        except Exception:
+            pass
+
+        try:
+            self.bar_results_holder.refresh()
+        except Exception:
+            pass
+        try:
+            self._deep_refresh(self.bar_col)
+        except Exception:
+            pass
+        _force_layout_ios(self.main_window)
+
+        # Удаляем временный контент без следов
+        try:
+            self._really_clear_holder_children(self.bar_results_holder)
+        except Exception:
+            pass
+        try:
+            self.bar_results_holder.refresh()
+        except Exception:
+            pass
+        _force_layout_ios(self.main_window)
+
     # ---- гарантированная «инициализация» лэйаута Штанги (один раз) ----
     def _ensure_bar_ready_once(self):
         if not IS_IOS:
@@ -560,10 +660,16 @@ class RowStrengthApp(toga.App):
         self._nudge_scrollcontainers()
         self._ios_strip_global_blurs()
 
+        # FIX(iOS layout): тёплый выбор вкладки и фальш-пересчёт (пока вкладка скрыта)
+        self._ios_warm_select_bar()
+        self._ios_fake_recalc_bar()
+
         # И ещё пара проходов с маленькой задержкой — чтобы поймать поздние перерисовки
         loop = asyncio.get_event_loop()
         loop.call_later(0.02, lambda: (self._ios_strong_nudge_scrollcontainer(self.bar_page),
                                        self._nudge_scrollcontainers()))
+        loop.call_later(0.03, lambda: (self._ios_warm_select_bar(),))           # FIX(iOS layout): повтор warm-select
+        loop.call_later(0.06, lambda: (self._ios_fake_recalc_bar(),))           # FIX(iOS layout): повтор fake-recalc
         loop.call_later(0.08, lambda: (self._ios_strip_global_blurs(),
                                        self._ios_strong_nudge_scrollcontainer(self.bar_page)))
         loop.call_later(0.15, lambda: (_force_layout_ios(self.main_window),))
@@ -788,9 +894,6 @@ class RowStrengthApp(toga.App):
             loop.call_later(0.10, self._nudge_scrollcontainers)
 
         # FIX(iOS layout): Однократный «прогрев» скрытой вкладки «Штанга»
-        # Выполняется сразу после сборки UI, пока вкладка ещё не отображена.
-        # Это форсирует первичный лэйаут и устраняет «прилипание» строк к левому краю
-        # при первом заходе на вкладку.
         if IS_IOS:
             self._ensure_bar_ready_once()
 

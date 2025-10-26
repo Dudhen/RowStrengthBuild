@@ -34,10 +34,19 @@ CLR_ACCENT = "#6A5ACD"
 
 
 def S_MAIN():  return Pack(direction=COLUMN, padding=PAD_MAIN, flex=1)
+
+
 def S_ROW():   return Pack(direction=ROW, padding_bottom=6)  # ← оставляем как было (без flex)
+
+
 def S_COL():   return Pack(direction=COLUMN)
+
+
 def S_HEAD():  return Pack(font_size=F_HEAD, padding_bottom=6)
+
+
 def S_LBL():   return Pack(font_size=F_LABEL, padding_right=8, flex=1)
+
 
 def S_INP(w=None, is_lang=None):
     if is_lang:
@@ -46,6 +55,7 @@ def S_INP(w=None, is_lang=None):
             kw["width"] = w
         return Pack(**kw)
     return Pack(font_size=F_INPUT, padding_right=10, width=INP_W)
+
 
 def S_BTN():   return Pack(padding_top=10, padding_bottom=10, padding_left=12, padding_right=12, flex=1)
 
@@ -63,14 +73,18 @@ T = {
     "gender": {"en": "   Gender", "de": "   Geschlecht", "fr": "   Sexe", "es": "   Sexo", "ru": "   Пол"},
     "female": {"en": "Female", "de": "Weiblich", "fr": "Femme", "es": "Mujer", "ru": "Жен"},
     "male": {"en": "Male", "de": "Мännlich", "fr": "Homme", "es": "Hombre", "ru": "Муж"},
-    "weight": {"en": "   Body weight (kg)", "de": "   Körpergewicht (kg)", "fr": "   Poids (kg)", "es": "   Peso corporal (kg)",
+    "weight": {"en": "   Body weight (kg)", "de": "   Körpergewicht (kg)", "fr": "   Poids (kg)",
+               "es": "   Peso corporal (kg)",
                "ru": "   Вес (кг)"},
-    "distance": {"en": "   Distance", "de": "   Distanz", "fr": "   Distance", "es": "   Distancia", "ru": "   Дистанция"},
+    "distance": {"en": "   Distance", "de": "   Distanz", "fr": "   Distance", "es": "   Distancia",
+                 "ru": "   Дистанция"},
     "minutes": {"en": "   Min", "de": "   Min", "fr": "   Min", "es": "   Min", "ru": "   Мин"},
     "seconds": {"en": "   Sec", "de": "   Sek", "fr": "   Sec", "es": "   Seg", "ru": "   Сек"},
     "centis": {"en": "   Tenths", "de": "   Zehntel", "fr": "   Dixièmes", "es": "   Décimas", "ru": "   Миллисекунды"},
-    "exercise": {"en": "   Exercise", "de": "   Übung", "fr": "   Exercice", "es": "   Ejercicio", "ru": "   Упражнение"},
-    "bar_weight": {"en": "   Bar weight (kg)", "de": "   Hantelgewicht (kg)", "fr": "   Charge (kg)", "es": "   Peso en barra (kg)",
+    "exercise": {"en": "   Exercise", "de": "   Übung", "fr": "   Exercice", "es": "   Ejercicio",
+                 "ru": "   Упражнение"},
+    "bar_weight": {"en": "   Bar weight (kg)", "de": "   Hantelgewicht (kg)", "fr": "   Charge (kg)",
+                   "es": "   Peso en barra (kg)",
                    "ru": "   Вес на штанге (кг)"},
     "reps": {"en": "   Reps", "de": "   Wdh.", "fr": "   Répétitions", "es": "   Reps", "ru": "   Повторы"},
     "calc": {"en": "Calculate", "de": "Berechnen", "fr": "Calculer", "es": "Calcular", "ru": "Рассчитать"},
@@ -300,10 +314,10 @@ class RowStrengthApp(toga.App):
                 pass
 
         try:
-            _set_kb(self.weight, 8)       # DecimalPad
-            _set_kb(self.weight_b, 8)     # DecimalPad
-            _set_kb(self.bar_weight, 8)   # DecimalPad
-            _set_kb(self.reps, 4)         # NumberPad
+            _set_kb(self.weight, 8)  # DecimalPad
+            _set_kb(self.weight_b, 8)  # DecimalPad
+            _set_kb(self.bar_weight, 8)  # DecimalPad
+            _set_kb(self.reps, 4)  # NumberPad
         except Exception:
             pass
 
@@ -570,9 +584,11 @@ class RowStrengthApp(toga.App):
                     bar_item = None
                     erg_item = None
                     for it in items:
-                        if getattr(it, "content", None) is self.bar_page or getattr(it, "content", None) is self.bar_col:
+                        if getattr(it, "content", None) is self.bar_page or getattr(it, "content",
+                                                                                    None) is self.bar_col:
                             bar_item = it
-                        if getattr(it, "content", None) is self.erg_page or getattr(it, "content", None) is self.erg_col:
+                        if getattr(it, "content", None) is self.erg_page or getattr(it, "content",
+                                                                                    None) is self.erg_col:
                             erg_item = it
                     if bar_item is not None:
                         self.tabs.current_tab = bar_item
@@ -668,8 +684,8 @@ class RowStrengthApp(toga.App):
         loop = asyncio.get_event_loop()
         loop.call_later(0.02, lambda: (self._ios_strong_nudge_scrollcontainer(self.bar_page),
                                        self._nudge_scrollcontainers()))
-        loop.call_later(0.03, lambda: (self._ios_warm_select_bar(),))           # FIX(iOS layout): повтор warm-select
-        loop.call_later(0.06, lambda: (self._ios_fake_recalc_bar(),))           # FIX(iOS layout): повтор fake-recalc
+        loop.call_later(0.03, lambda: (self._ios_warm_select_bar(),))  # FIX(iOS layout): повтор warm-select
+        loop.call_later(0.06, lambda: (self._ios_fake_recalc_bar(),))  # FIX(iOS layout): повтор fake-recalc
         loop.call_later(0.08, lambda: (self._ios_strip_global_blurs(),
                                        self._ios_strong_nudge_scrollcontainer(self.bar_page)))
         loop.call_later(0.15, lambda: (_force_layout_ios(self.main_window),))
@@ -730,9 +746,13 @@ class RowStrengthApp(toga.App):
                 sec_items_for_min = sec_map.get(min_default, ["00"])
                 sec_default = sec_items_for_min[0] if sec_items_for_min else "00"
             else:
-                minutes_list = ["06"]; sec_items_for_min = ["00"]; min_default, sec_default = "06", "00"
+                minutes_list = ["06"];
+                sec_items_for_min = ["00"];
+                min_default, sec_default = "06", "00"
         except Exception:
-            minutes_list = ["06"]; sec_items_for_min = ["00"]; min_default, sec_default = "06", "00"
+            minutes_list = ["06"];
+            sec_items_for_min = ["00"];
+            min_default, sec_default = "06", "00"
 
         self._min_value = min_default
         self._sec_value = sec_default
@@ -1177,8 +1197,10 @@ class RowStrengthApp(toga.App):
         dist = int(self.distance.value)
         dist_data = get_distance_data(g_key, dist, self.rowing_data)
         if not dist_data:
-            self.min_sel.items = ["00"]; self.min_sel.value = "00"
-            self.sec_sel.items = ["00"]; self.sec_sel.value = "00"
+            self.min_sel.items = ["00"];
+            self.min_sel.value = "00"
+            self.sec_sel.items = ["00"];
+            self.sec_sel.value = "00"
             self._min_value = "00"
             self._sec_value = "00"
             return
@@ -1217,7 +1239,8 @@ class RowStrengthApp(toga.App):
         try:
             bw = float(self.weight.value or 0)
             if not (40 <= bw <= 140):
-                self._info(T["err_weight"][self.lang]); return
+                self._info(T["err_weight"][self.lang]);
+                return
 
             g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
             dist = int(self.distance.value)
@@ -1230,10 +1253,10 @@ class RowStrengthApp(toga.App):
 
             t_norm = (f"{mm}:{ss}.{cc}" if str(cc) not in ("0", "00") else f"{mm}:{ss}")
             dist_data_time = (
-                dist_data.get(t_norm)
-                or dist_data.get(t_norm.lstrip("0"))
-                or dist_data.get(f"{mm}:{ss}")
-                or dist_data.get(f"{mm}:{ss}".lstrip("0"))
+                    dist_data.get(t_norm)
+                    or dist_data.get(t_norm.lstrip("0"))
+                    or dist_data.get(f"{mm}:{ss}")
+                    or dist_data.get(f"{mm}:{ss}".lstrip("0"))
             )
             if not dist_data_time: self._info(T["err_time_range"][self.lang]); return
 
@@ -1284,15 +1307,18 @@ class RowStrengthApp(toga.App):
         try:
             bw = float(self.weight_b.value or 0)
             if not (40 <= bw <= 140):
-                self._info(T["err_weight"][self.lang]); return
+                self._info(T["err_weight"][self.lang]);
+                return
 
             bar_w = float(self.bar_weight.value or 0)
             if not (1 <= bar_w <= 700):
-                self._info(T["err_bar_weight"][self.lang]); return
+                self._info(T["err_bar_weight"][self.lang]);
+                return
 
             reps = int(self.reps.value or 0)
             if not (1 <= reps <= 30):
-                self._info(T["err_reps"][self.lang]); return
+                self._info(T["err_reps"][self.lang]);
+                return
 
             rep_max = round((bar_w / REPS_TABLE[reps]) * 100, 2)
 

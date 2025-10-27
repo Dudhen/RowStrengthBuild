@@ -56,6 +56,10 @@ def S_INP(w=None, is_lang=None):
         return Pack(**kw)
     return Pack(font_size=F_INPUT, padding_right=10, width=INP_W)
 
+# UI: compact time row — узкие инпуты для селектов времени
+def S_INP_NARROW(w):
+    return Pack(font_size=F_INPUT, padding_right=6, width=w)
+
 
 def S_BTN():   return Pack(padding_top=10, padding_bottom=10, padding_left=12, padding_right=12, flex=1)
 
@@ -81,6 +85,14 @@ T = {
     "minutes": {"en": "   Min", "de": "   Min", "fr": "   Min", "es": "   Min", "ru": "   Мин"},
     "seconds": {"en": "   Sec", "de": "   Sek", "fr": "   Sec", "es": "   Seg", "ru": "   Сек"},
     "centis": {"en": "   Tenths", "de": "   Zehntel", "fr": "   Dixièmes", "es": "   Décimas", "ru": "   Миллисекунды"},
+    # UI: compact time row — новый локализованный заголовок
+    "time_compact": {
+        "en": "   Time (min:sec.ms)",
+        "de": "   Zeit (Min:Sek.ms)",
+        "fr": "   Temps (min:s.ms)",
+        "es": "   Tiempo (min:s.ms)",
+        "ru": "   Время (мин:сек.мс)",
+    },
     "exercise": {"en": "   Exercise", "de": "   Übung", "fr": "   Exercice", "es": "   Ejercicio",
                  "ru": "   Упражнение"},
     "bar_weight": {"en": "   Bar weight (kg)", "de": "   Hantelgewicht (kg)", "fr": "   Charge (kg)",
@@ -746,13 +758,9 @@ class RowStrengthApp(toga.App):
                 sec_items_for_min = sec_map.get(min_default, ["00"])
                 sec_default = sec_items_for_min[0] if sec_items_for_min else "00"
             else:
-                minutes_list = ["06"];
-                sec_items_for_min = ["00"];
-                min_default, sec_default = "06", "00"
+                minutes_list = ["06"]; sec_items_for_min = ["00"]; min_default, sec_default = "06", "00"
         except Exception:
-            minutes_list = ["06"];
-            sec_items_for_min = ["00"];
-            min_default, sec_default = "06", "00"
+            minutes_list = ["06"]; sec_items_for_min = ["00"]; min_default, sec_default = "06", "00"
 
         self._min_value = min_default
         self._sec_value = sec_default
@@ -808,16 +816,23 @@ class RowStrengthApp(toga.App):
         self.distance = toga.Selection(items=[str(d) for d in DISTANCES], value="2000",
                                        on_change=self._on_distance_change, style=S_INP(160))
 
-        self.min_lbl = toga.Label(T["minutes"][self.lang], style=S_LBL())
-        self.sec_lbl = toga.Label(T["seconds"][self.lang], style=S_LBL())
-        self.cen_lbl = toga.Label(T["centis"][self.lang], style=S_LBL())
+        # UI: compact time row — один заголовок «Время (мин:сек.мс)» вместо трёх
+        self.time_lbl = toga.Label(T["time_compact"][self.lang], style=S_LBL())
 
+        # Селекты времени (узкие) + разделители ":" и "."
         self.min_sel = toga.Selection(items=minutes_list, value=min_default,
-                                      on_change=self._on_minute_change, style=S_INP(120))
+                                      on_change=self._on_minute_change, style=S_INP_NARROW(64))  # UI: compact time row
         self.sec_sel = toga.Selection(items=list(sec_items_for_min), value=sec_default,
-                                      on_change=self._on_second_change, style=S_INP(120))
+                                      on_change=self._on_second_change, style=S_INP_NARROW(64))  # UI: compact time row
         self.cen_sel = toga.Selection(items=[str(i) for i in range(10)], value="0",
-                                      on_change=self._on_centi_change, style=S_INP(120))
+                                      on_change=self._on_centi_change, style=S_INP_NARROW(64))  # UI: compact time row
+        sep_style = Pack(padding_left=4, padding_right=4, font_size=F_INPUT)  # UI: compact time row
+        time_inputs = toga.Box(style=Pack(direction=ROW))  # UI: compact time row
+        time_inputs.add(self.min_sel)
+        time_inputs.add(toga.Label(":", style=sep_style))
+        time_inputs.add(self.sec_sel)
+        time_inputs.add(toga.Label(".", style=sep_style))
+        time_inputs.add(self.cen_sel)
 
         self.btn_erg = toga.Button(T["calc"][self.lang], on_press=self.calculate_erg, style=S_BTN())
         try:
@@ -832,9 +847,7 @@ class RowStrengthApp(toga.App):
             toga.Box(children=[self.gender_lbl, self.gender], style=S_ROW()),
             toga.Box(children=[self.weight_lbl, self.weight], style=S_ROW()),
             toga.Box(children=[self.distance_lbl, self.distance], style=S_ROW()),
-            toga.Box(children=[self.min_lbl, self.min_sel], style=S_ROW()),
-            toga.Box(children=[self.sec_lbl, self.sec_sel], style=S_ROW()),
-            toga.Box(children=[self.cen_lbl, self.cen_sel], style=S_ROW()),
+            toga.Box(children=[self.time_lbl, time_inputs], style=S_ROW()),  # UI: compact time row
             toga.Box(children=[self.btn_erg], style=S_ROW()),
             self.erg_results_holder,
         ]
@@ -1084,9 +1097,7 @@ class RowStrengthApp(toga.App):
         self.gender_lbl.text = T["gender"][self.lang]
         self.weight_lbl.text = T["weight"][self.lang]
         self.distance_lbl.text = T["distance"][self.lang]
-        self.min_lbl.text = T["minutes"][self.lang]
-        self.sec_lbl.text = T["seconds"][self.lang]
-        self.cen_lbl.text = T["centis"][self.lang]
+        self.time_lbl.text = T["time_compact"][self.lang]  # UI: compact time row
         self.btn_erg.text = T["calc"][self.lang]
         self.gender.items = GENDER_LABELS[self.lang]
 
@@ -1197,10 +1208,8 @@ class RowStrengthApp(toga.App):
         dist = int(self.distance.value)
         dist_data = get_distance_data(g_key, dist, self.rowing_data)
         if not dist_data:
-            self.min_sel.items = ["00"];
-            self.min_sel.value = "00"
-            self.sec_sel.items = ["00"];
-            self.sec_sel.value = "00"
+            self.min_sel.items = ["00"]; self.min_sel.value = "00"
+            self.sec_sel.items = ["00"]; self.sec_sel.value = "00"
             self._min_value = "00"
             self._sec_value = "00"
             return
@@ -1239,8 +1248,7 @@ class RowStrengthApp(toga.App):
         try:
             bw = float(self.weight.value or 0)
             if not (40 <= bw <= 140):
-                self._info(T["err_weight"][self.lang]);
-                return
+                self._info(T["err_weight"][self.lang]); return
 
             g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
             dist = int(self.distance.value)
@@ -1253,10 +1261,10 @@ class RowStrengthApp(toga.App):
 
             t_norm = (f"{mm}:{ss}.{cc}" if str(cc) not in ("0", "00") else f"{mm}:{ss}")
             dist_data_time = (
-                    dist_data.get(t_norm)
-                    or dist_data.get(t_norm.lstrip("0"))
-                    or dist_data.get(f"{mm}:{ss}")
-                    or dist_data.get(f"{mm}:{ss}".lstrip("0"))
+                dist_data.get(t_norm)
+                or dist_data.get(t_norm.lstrip("0"))
+                or dist_data.get(f"{mm}:{ss}")
+                or dist_data.get(f"{mm}:{ss}".lstrip("0"))
             )
             if not dist_data_time: self._info(T["err_time_range"][self.lang]); return
 
@@ -1307,18 +1315,15 @@ class RowStrengthApp(toga.App):
         try:
             bw = float(self.weight_b.value or 0)
             if not (40 <= bw <= 140):
-                self._info(T["err_weight"][self.lang]);
-                return
+                self._info(T["err_weight"][self.lang]); return
 
             bar_w = float(self.bar_weight.value or 0)
             if not (1 <= bar_w <= 700):
-                self._info(T["err_bar_weight"][self.lang]);
-                return
+                self._info(T["err_bar_weight"][self.lang]); return
 
             reps = int(self.reps.value or 0)
             if not (1 <= reps <= 30):
-                self._info(T["err_reps"][self.lang]);
-                return
+                self._info(T["err_reps"][self.lang]); return
 
             rep_max = round((bar_w / REPS_TABLE[reps]) * 100, 2)
 

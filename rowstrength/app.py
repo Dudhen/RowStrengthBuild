@@ -87,11 +87,11 @@ T = {
     "centis": {"en": "   Tenths", "de": "   Zehntel", "fr": "   Dixièmes", "es": "   Décimas", "ru": "   Миллисекунды"},
     # UI: compact time row — новый локализованный заголовок
     "time_compact": {
-        "en": "   Time (min:sec.ms)",
-        "de": "   Zeit (Min:Sek.ms)",
-        "fr": "   Temps (min:s.ms)",
-        "es": "   Tiempo (min:s.ms)",
-        "ru": "   Время (мин:сек.мс)",
+        "en": "   Time\n   (min:sec.ms)",
+        "de": "   Zeit\n   (Min:Sek.ms)",
+        "fr": "   Temps\n   (min:s.ms)",
+        "es": "   Tiempo\n   (min:s.ms)",
+        "ru": "   Время\n   (мин:сек.мс)",
     },
     "exercise": {"en": "   Exercise", "de": "   Übung", "fr": "   Exercice", "es": "   Ejercicio",
                  "ru": "   Упражнение"},
@@ -123,7 +123,7 @@ T = {
         "ru": "  Разовый максимум\n  и эквивалент на эргометре 2км",
     },
     # Табличные подписи
-    "tbl_1rm": {"en": "1 rep max", "de": "1RM", "fr": "1 RM", "es": "1RM", "ru": "Разовый максимум"},
+    "tbl_1rm": {"en": "1 rep max", "de": "1RM", "fr": "1 RM", "es": "1RM", "ru": "Разовый макс."},
     "tbl_2k": {"en": "2k ergometer", "de": "2 km Ergo", "fr": "Ergo 2 km", "es": "Ergo 2 km", "ru": "2км эргометр"},
     # Упражнения
     "ex_bench": {"en": "Bench press", "de": "Bankdrücken", "fr": "Développé couché", "es": "Press banca", "ru": "Жим"},

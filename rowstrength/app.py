@@ -58,7 +58,7 @@ def S_INP(w=None, is_lang=None):
 
 # UI: compact time row — узкие инпуты для селектов времени
 def S_INP_NARROW(w):
-    return Pack(font_size=F_INPUT, padding_right=6, width=w)
+    return Pack(font_size=F_INPUT, padding_right=8, width=w)
 
 
 def S_BTN():   return Pack(padding_top=10, padding_bottom=10, padding_left=12, padding_right=12, flex=1)

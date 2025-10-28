@@ -700,7 +700,7 @@ class RowStrengthApp(toga.App):
         loop.call_later(0.06, lambda: (self._ios_fake_recalc_bar(),))  # FIX(iOS layout): повтор fake-recalc
         loop.call_later(0.08, lambda: (self._ios_strip_global_blurs(),
                                        self._ios_strong_nudge_scrollcontainer(self.bar_page)))
-        loop.call_later(0.15, lambda: (_force_layout_ios(self.main_window),))
+        loop.call_later(0.1, lambda: (_force_layout_ios(self.main_window),))
 
     # ---- надёжная очистка контейнера результатов ----
     def _really_clear_holder_children(self, holder: toga.Box | None):
@@ -924,7 +924,7 @@ class RowStrengthApp(toga.App):
         if IS_IOS:
             loop = asyncio.get_event_loop()
             loop.call_later(0.02, self._nudge_scrollcontainers)
-            loop.call_later(0.10, self._nudge_scrollcontainers)
+            loop.call_later(0.08, self._nudge_scrollcontainers)
 
         # FIX(iOS layout): Однократный «прогрев» скрытой вкладки «Штанга»
         if IS_IOS:
@@ -935,7 +935,7 @@ class RowStrengthApp(toga.App):
         if IS_IOS:
             loop = asyncio.get_event_loop()
             loop.call_later(0.03, self._apply_ios_keyboard_types)
-            loop.call_later(0.20, self._apply_ios_keyboard_types)
+            loop.call_later(0.1, self._apply_ios_keyboard_types)
             try:
                 idx_min = [row.value for row in list(self.min_sel.items)].index(self._min_value)
             except Exception:

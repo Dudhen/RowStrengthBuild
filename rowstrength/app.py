@@ -56,6 +56,7 @@ def S_INP(w=None, is_lang=None):
         return Pack(**kw)
     return Pack(font_size=F_INPUT, padding_right=10, width=INP_W)
 
+
 # UI: compact time row — узкие инпуты для селектов времени
 def S_INP_NARROW(w):
     return Pack(font_size=F_INPUT, padding_right=10, width=w)
@@ -758,9 +759,13 @@ class RowStrengthApp(toga.App):
                 sec_items_for_min = sec_map.get(min_default, ["00"])
                 sec_default = sec_items_for_min[0] if sec_items_for_min else "00"
             else:
-                minutes_list = ["06"]; sec_items_for_min = ["00"]; min_default, sec_default = "06", "00"
+                minutes_list = ["06"];
+                sec_items_for_min = ["00"];
+                min_default, sec_default = "06", "00"
         except Exception:
-            minutes_list = ["06"]; sec_items_for_min = ["00"]; min_default, sec_default = "06", "00"
+            minutes_list = ["06"];
+            sec_items_for_min = ["00"];
+            min_default, sec_default = "06", "00"
 
         self._min_value = min_default
         self._sec_value = sec_default
@@ -1208,8 +1213,10 @@ class RowStrengthApp(toga.App):
         dist = int(self.distance.value)
         dist_data = get_distance_data(g_key, dist, self.rowing_data)
         if not dist_data:
-            self.min_sel.items = ["00"]; self.min_sel.value = "00"
-            self.sec_sel.items = ["00"]; self.sec_sel.value = "00"
+            self.min_sel.items = ["00"];
+            self.min_sel.value = "00"
+            self.sec_sel.items = ["00"];
+            self.sec_sel.value = "00"
             self._min_value = "00"
             self._sec_value = "00"
             return
@@ -1248,7 +1255,8 @@ class RowStrengthApp(toga.App):
         try:
             bw = float(self.weight.value or 0)
             if not (40 <= bw <= 140):
-                self._info(T["err_weight"][self.lang]); return
+                self._info(T["err_weight"][self.lang]);
+                return
 
             g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
             dist = int(self.distance.value)
@@ -1261,10 +1269,10 @@ class RowStrengthApp(toga.App):
 
             t_norm = (f"{mm}:{ss}.{cc}" if str(cc) not in ("0", "00") else f"{mm}:{ss}")
             dist_data_time = (
-                dist_data.get(t_norm)
-                or dist_data.get(t_norm.lstrip("0"))
-                or dist_data.get(f"{mm}:{ss}")
-                or dist_data.get(f"{mm}:{ss}".lstrip("0"))
+                    dist_data.get(t_norm)
+                    or dist_data.get(t_norm.lstrip("0"))
+                    or dist_data.get(f"{mm}:{ss}")
+                    or dist_data.get(f"{mm}:{ss}".lstrip("0"))
             )
             if not dist_data_time: self._info(T["err_time_range"][self.lang]); return
 
@@ -1315,15 +1323,18 @@ class RowStrengthApp(toga.App):
         try:
             bw = float(self.weight_b.value or 0)
             if not (40 <= bw <= 140):
-                self._info(T["err_weight"][self.lang]); return
+                self._info(T["err_weight"][self.lang]);
+                return
 
             bar_w = float(self.bar_weight.value or 0)
             if not (1 <= bar_w <= 700):
-                self._info(T["err_bar_weight"][self.lang]); return
+                self._info(T["err_bar_weight"][self.lang]);
+                return
 
             reps = int(self.reps.value or 0)
             if not (1 <= reps <= 30):
-                self._info(T["err_reps"][self.lang]); return
+                self._info(T["err_reps"][self.lang]);
+                return
 
             rep_max = round((bar_w / REPS_TABLE[reps]) * 100, 2)
 

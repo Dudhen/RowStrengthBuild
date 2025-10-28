@@ -821,11 +821,11 @@ class RowStrengthApp(toga.App):
 
         # Селекты времени (узкие) + разделители ":" и "."
         self.min_sel = toga.Selection(items=minutes_list, value=min_default,
-                                      on_change=self._on_minute_change, style=S_INP_NARROW(52))  # UI: compact time row
+                                      on_change=self._on_minute_change, style=S_INP_NARROW(55))  # UI: compact time row
         self.sec_sel = toga.Selection(items=list(sec_items_for_min), value=sec_default,
-                                      on_change=self._on_second_change, style=S_INP_NARROW(52))  # UI: compact time row
+                                      on_change=self._on_second_change, style=S_INP_NARROW(55))  # UI: compact time row
         self.cen_sel = toga.Selection(items=[str(i) for i in range(10)], value="0",
-                                      on_change=self._on_centi_change, style=S_INP_NARROW(52))  # UI: compact time row
+                                      on_change=self._on_centi_change, style=S_INP_NARROW(55))  # UI: compact time row
         sep_style = Pack(padding_left=4, padding_right=4, font_size=F_INPUT)  # UI: compact time row
         time_inputs = toga.Box(style=Pack(direction=ROW))  # UI: compact time row
         time_inputs.add(self.min_sel)

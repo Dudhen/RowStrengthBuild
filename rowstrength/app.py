@@ -358,41 +358,6 @@ class RowStrengthApp(toga.App):
         # (Не используется: NumberInput заменены на TextInput)
         return 0.01
 
-    # ---- Санитарная правка ввода для десятичных полей (., , ; максимум 2 знака) ----
-    def _on_decimal_input_change(self, widget):
-        if self._sanitizing_numeric_input:
-            return
-        s = (widget.value or "").strip()
-        if s == "":
-            return
-        sep_seen = False
-        out = []
-        for ch in s:
-            if ch.isdigit():
-                out.append(ch)
-            elif ch in ".,":  # разрешаем один разделитель
-                if not sep_seen:
-                    sep_seen = True
-                    out.append(ch)
-            # остальное игнорируем
-
-        cleaned = "".join(out)
-        if cleaned.startswith(".") or cleaned.startswith(","):
-            cleaned = "0" + cleaned
-
-        if "." in cleaned or "," in cleaned:
-            sep = "." if "." in cleaned else ","
-            intp, fracp = cleaned.split(sep, 1)
-            fracp = fracp[:2]  # максимум 2 знака после разделителя
-            cleaned = intp + sep + fracp
-
-        if cleaned != s:
-            try:
-                self._sanitizing_numeric_input = True
-                widget.value = cleaned
-            finally:
-                self._sanitizing_numeric_input = False
-
     # ===== Сервис: безопасная установка items с сохранением value =====
     def _set_selection_items_preserve(self, selection: toga.Selection, items, desired_value):
         try:
@@ -938,9 +903,8 @@ class RowStrengthApp(toga.App):
         self.gender = toga.Selection(items=GENDER_LABELS[self.lang], value=GENDER_LABELS[self.lang][1],
                                      on_change=self._on_gender_change, style=S_INP(160))
         self.weight_lbl = toga.Label(T["weight"][self.lang], style=S_LBL())
-        # Ввод веса: TextInput с поддержкой ',' и '.' и ограничением 2 знаков
-        self.weight = toga.TextInput(value="80", style=S_INP(160),
-                                     on_change=self._on_decimal_input_change)
+        # Начальные значения — без дробной части
+        self.weight = toga.NumberInput(step=0.01, value=80, style=S_INP(160))
 
         self.distance_lbl = toga.Label(T["distance"][self.lang], style=S_LBL())
         self.distance = toga.Selection(items=[str(d) for d in DISTANCES], value="2000",
@@ -988,16 +952,14 @@ class RowStrengthApp(toga.App):
         self.gender_b = toga.Selection(items=GENDER_LABELS[self.lang], value=GENDER_LABELS[self.lang][1],
                                        style=S_INP(160))
         self.weight_b_lbl = toga.Label(T["weight"][self.lang], style=S_LBL())
-        self.weight_b = toga.TextInput(value="80", style=S_INP(160),
-                                       on_change=self._on_decimal_input_change)
+        self.weight_b = toga.NumberInput(step=0.01, value=80, style=S_INP(160))
 
         self.ex_lbl = toga.Label(T["exercise"][self.lang], style=S_LBL())
         self.exercise = toga.Selection(items=list(EX_UI_TO_KEY[self.lang].keys()),
                                        value=list(EX_UI_TO_KEY[self.lang].keys())[0],
                                        style=S_INP(200))
         self.bw_lbl = toga.Label(T["bar_weight"][self.lang], style=S_LBL())
-        self.bar_weight = toga.TextInput(value="100", style=S_INP(160),
-                                         on_change=self._on_decimal_input_change)
+        self.bar_weight = toga.NumberInput(step=0.5, value=100, style=S_INP(160))
         self.reps_lbl = toga.Label(T["reps"][self.lang], style=S_LBL())
         self.reps = toga.NumberInput(step=1, value=5, style=S_INP(120))
 

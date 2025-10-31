@@ -116,16 +116,39 @@ T = {
         "es": "  Equivalentes con barra \n  (peso corporal {w} kg)",
         "ru": "  Эквивалент в штанге с весом {w} кг",
     },
+    # UI: обновлённый заголовок таблицы «Штанга» — эквиваленты + 2км
     "bar_tbl_title": {
-        "en": "  One-rep max\n  and 2k ergometer equivalent",
-        "de": "  1RM\n  und 2-km-Ergometer-Äquivalent",
-        "fr": "  1 RM\n  et équivalent ergomètre 2 km",
-        "es": "  1RM\n  y equivalente de ergómetro 2 km",
-        "ru": "  Разовый максимум\n  и эквивалент на эргометре 2км",
+        "en": "  1RM and equivalents\n  (other lifts + 2k ergometer)",
+        "de": "  1RM und Äquivalente\n  (andere Lifts + 2 km Ergo)",
+        "fr": "  1 RM et équivalents\n  (autres exercices + ergo 2 km)",
+        "es": "  1RM y equivalentes\n  (otros ejercicios + ergo 2 km)",
+        "ru": "  1ПМ и эквиваленты\n  (другие упражнения + эргометр 2км)",
     },
     # Табличные подписи
     "tbl_1rm": {"en": "1 rep max", "de": "1RM", "fr": "1 RM", "es": "1RM", "ru": "Разовый макс."},
     "tbl_2k": {"en": "2k ergometer", "de": "2 km Ergo", "fr": "Ergo 2 km", "es": "Ergo 2 km", "ru": "2км эргометр"},
+    # Новые строки эквивалентов для «Штанги»
+    "tbl_equiv_bench": {
+        "en": "Equivalent (bench press)",
+        "de": "Äquivalent (Bankdrücken)",
+        "fr": "Équivalent (développé couché)",
+        "es": "Equivalente (press banca)",
+        "ru": "Эквивалент в жиме",
+    },
+    "tbl_equiv_squat": {
+        "en": "Equivalent (squat)",
+        "de": "Äquivalent (Kniebeuge)",
+        "fr": "Équivalent (squat)",
+        "es": "Equivalente (sentadilla)",
+        "ru": "Эквивалент в приседе",
+    },
+    "tbl_equiv_deadlift": {
+        "en": "Equivalent (deadlift)",
+        "de": "Äquivalent (Kreuzheben)",
+        "fr": "Équivalent (soulevé de terre)",
+        "es": "Equivalente (peso muerto)",
+        "ru": "Эквивалент в становой тяге",
+    },
     # Упражнения
     "ex_bench": {"en": "Bench press", "de": "Bankdrücken", "fr": "Développé couché", "es": "Press banca", "ru": "Жим"},
     "ex_squat": {"en": "Squat", "de": "Knieбеuge", "fr": "Squat", "es": "Sentadilla", "ru": "Присед"},
@@ -824,7 +847,7 @@ class RowStrengthApp(toga.App):
         # UI: compact time row — один заголовок «Время (мин:сек.мс)» вместо трёх
         self.time_lbl = toga.Label(T["time_compact"][self.lang], style=S_LBL())
 
-        # Селекты времени (узкие) + разделители ":" и "."
+        # Селекты времени (узкие) + разделители ":" и "."  # UI: compact time row
         self.min_sel = toga.Selection(items=minutes_list, value=min_default,
                                       on_change=self._on_minute_change, style=S_INP_NARROW(51))  # UI: compact time row
         self.sec_sel = toga.Selection(items=list(sec_items_for_min), value=sec_default,
@@ -1352,6 +1375,38 @@ class RowStrengthApp(toga.App):
                     break
             if i_percent is None: self._info(T["err_1rm_map"][self.lang]); return
 
+            # По найденному проценту — эквиваленты в двух других упражнениях
+            def _equiv_for(other_key: str):
+                other_tbl = strength_for_user.get(other_key, {})
+                equiv_val = None
+                for pct_str, kg_str in sorted(other_tbl.items(), key=lambda kv: float(kv[0])):
+                    if float(pct_str) <= i_percent:
+                        equiv_val = kg_str
+                    else:
+                        break
+                if equiv_val is None and other_tbl:
+                    # Фоллбек: минимальный процент (на всякий случай)
+                    equiv_val = sorted(other_tbl.items(), key=lambda kv: float(kv[0]))[0][1]
+                return equiv_val
+
+            # Определяем порядок строк эквивалентов
+            if ex_key == "bench-press":
+                first_other_key, second_other_key = "squat", "deadlift"
+                first_other_lbl = T["tbl_equiv_squat"][self.lang]
+                second_other_lbl = T["tbl_equiv_deadlift"][self.lang]
+            elif ex_key == "squat":
+                first_other_key, second_other_key = "bench-press", "deadlift"
+                first_other_lbl = T["tbl_equiv_bench"][self.lang]
+                second_other_lbl = T["tbl_equiv_deadlift"][self.lang]
+            else:  # deadlift
+                first_other_key, second_other_key = "squat", "bench-press"
+                first_other_lbl = T["tbl_equiv_squat"][self.lang]
+                second_other_lbl = T["tbl_equiv_bench"][self.lang]
+
+            first_equiv = _equiv_for(first_other_key)
+            second_equiv = _equiv_for(second_other_key)
+
+            # Находим эквивалент 2км на эргометре по тому же проценту
             distance_data = get_distance_data(g_key, 2000, self.rowing_data)
             km2_res = None
             for k, v in distance_data.items():
@@ -1359,8 +1414,11 @@ class RowStrengthApp(toga.App):
                 if float(v.get("percent")) < i_percent:
                     break
 
+            unit = "кг" if self.lang == "ru" else "kg"
             rows = [
-                [T["tbl_1rm"][self.lang], f"{rep_max} кг" if self.lang == "ru" else f"{rep_max} kg"],
+                [T["tbl_1rm"][self.lang], f"{rep_max} {unit}"],
+                [first_other_lbl, f"{first_equiv} {unit}" if first_equiv is not None else "-"],
+                [second_other_lbl, f"{second_equiv} {unit}" if second_equiv is not None else "-"],
                 [T["tbl_2k"][self.lang], km2_res],
             ]
 

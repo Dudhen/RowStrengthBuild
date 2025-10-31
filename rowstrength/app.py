@@ -58,7 +58,7 @@ def S_BTN():   return Pack(padding_top=10, padding_bottom=10, padding_left=12, p
 
 # -------- Локализация --------
 LANGS = ["en", "de", "fr", "es", "ru"]
-LANG_LABEL = {"en": "English", "de": "Deutsch", "fr": "Français", "es": "Español", "ru": "Русский"}
+LANG_LABEL = {"en": "English", "de": "Deutsch", "fr": "Français", "es": "Idioma", "ru": "Русский"}
 T = {
     # сплэш теперь в 2 строки и по центру
     "splash": {l: " Dev by Dudhen:\n@arseny.dudhen" for l in LANGS},
@@ -358,12 +358,13 @@ class RowStrengthApp(toga.App):
         # (Не используется: NumberInput заменены на TextInput)
         return 0.01
 
-    # ===== Ограничение ввода для десятичных чисел (только цифры и один разделитель) =====
+    # ===== Ограничение ввода для десятичных чисел (только цифры, один разделитель, ≤2 знаков после) =====
     def _on_decimal_input_change(self, widget):
         """
         Разрешены только цифры и один десятичный разделитель ('.' или ',').
         Пустое значение допускается во время набора.
         Если строка начинается с разделителя — автоматически префиксуем '0'.
+        Дробная часть ограничена двумя символами.
         """
         if self._sanitizing_numeric_input:
             return
@@ -376,7 +377,6 @@ class RowStrengthApp(toga.App):
 
         # Мягкая санитарная фильтрация
         sep_seen = False
-        sep_char = None
         out_chars = []
         for ch in s:
             if ch.isdigit():
@@ -384,16 +384,22 @@ class RowStrengthApp(toga.App):
             elif ch in ".,":
                 if not sep_seen:
                     sep_seen = True
-                    sep_char = ch
                     out_chars.append(ch)
-                # дополнительные разделители игнорируем
-            # все остальные символы (буквы/пробелы/знаки) игнорируем
+            # остальные символы игнорируем
 
         cleaned = "".join(out_chars)
 
         # Если пользователь начал с разделителя — превратим в '0,' или '0.'
         if cleaned.startswith(".") or cleaned.startswith(","):
             cleaned = "0" + cleaned
+
+        # Ограничение на 2 знака после разделителя
+        sep = "." if "." in cleaned else ("," if "," in cleaned else None)
+        if sep is not None:
+            int_part, frac_part = cleaned.split(sep, 1)
+            if len(frac_part) > 2:
+                frac_part = frac_part[:2]
+            cleaned = int_part + sep + frac_part
 
         # Если после чистки строка изменилась — обновим значение поля
         if cleaned != s:

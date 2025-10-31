@@ -358,57 +358,6 @@ class RowStrengthApp(toga.App):
         # (Не используется: NumberInput заменены на TextInput)
         return 0.01
 
-    # ===== Ограничение ввода для десятичных чисел (только цифры, один разделитель, ≤2 знаков после) =====
-    def _on_decimal_input_change(self, widget):
-        """
-        Разрешены только цифры и один десятичный разделитель ('.' или ',').
-        Пустое значение допускается во время набора.
-        Если строка начинается с разделителя — автоматически префиксуем '0'.
-        Дробная часть ограничена двумя символами.
-        """
-        if self._sanitizing_numeric_input:
-            return
-        raw = widget.value or ""
-        s = str(raw)
-
-        # Быстрый выход: пусто — ок
-        if s == "":
-            return
-
-        # Мягкая санитарная фильтрация
-        sep_seen = False
-        out_chars = []
-        for ch in s:
-            if ch.isdigit():
-                out_chars.append(ch)
-            elif ch in ".,":
-                if not sep_seen:
-                    sep_seen = True
-                    out_chars.append(ch)
-            # остальные символы игнорируем
-
-        cleaned = "".join(out_chars)
-
-        # Если пользователь начал с разделителя — превратим в '0,' или '0.'
-        if cleaned.startswith(".") or cleaned.startswith(","):
-            cleaned = "0" + cleaned
-
-        # Ограничение на 2 знака после разделителя
-        sep = "." if "." in cleaned else ("," if "," in cleaned else None)
-        if sep is not None:
-            int_part, frac_part = cleaned.split(sep, 1)
-            if len(frac_part) > 2:
-                frac_part = frac_part[:2]
-            cleaned = int_part + sep + frac_part
-
-        # Если после чистки строка изменилась — обновим значение поля
-        if cleaned != s:
-            try:
-                self._sanitizing_numeric_input = True
-                widget.value = cleaned
-            finally:
-                self._sanitizing_numeric_input = False
-
     # ===== Сервис: безопасная установка items с сохранением value =====
     def _set_selection_items_preserve(self, selection: toga.Selection, items, desired_value):
         try:
@@ -955,7 +904,7 @@ class RowStrengthApp(toga.App):
                                      on_change=self._on_gender_change, style=S_INP(160))
         self.weight_lbl = toga.Label(T["weight"][self.lang], style=S_LBL())
         # Начальные значения — без дробной части
-        self.weight = toga.TextInput(value="80.00", style=S_INP(160), on_change=self._on_decimal_input_change)
+        self.weight_b = toga.NumberInput(step=0.01, value=80, style=S_INP(160))
 
         self.distance_lbl = toga.Label(T["distance"][self.lang], style=S_LBL())
         self.distance = toga.Selection(items=[str(d) for d in DISTANCES], value="2000",
@@ -1003,16 +952,16 @@ class RowStrengthApp(toga.App):
         self.gender_b = toga.Selection(items=GENDER_LABELS[self.lang], value=GENDER_LABELS[self.lang][1],
                                        style=S_INP(160))
         self.weight_b_lbl = toga.Label(T["weight"][self.lang], style=S_LBL())
-        self.weight_b = toga.TextInput(value="80.00", style=S_INP(160), on_change=self._on_decimal_input_change)
+        self.weight_b = toga.NumberInput(step=0.01, value=80, style=S_INP(160))
 
         self.ex_lbl = toga.Label(T["exercise"][self.lang], style=S_LBL())
         self.exercise = toga.Selection(items=list(EX_UI_TO_KEY[self.lang].keys()),
                                        value=list(EX_UI_TO_KEY[self.lang].keys())[0],
                                        style=S_INP(200))
         self.bw_lbl = toga.Label(T["bar_weight"][self.lang], style=S_LBL())
-        self.bar_weight = toga.TextInput(value="100", style=S_INP(160), on_change=self._on_decimal_input_change)
+        self.bar_weight = toga.NumberInput(step=0.5, value=100, style=S_INP(160))
         self.reps_lbl = toga.Label(T["reps"][self.lang], style=S_LBL())
-        self.reps = toga.NumberInput(step=0.01, value=5, style=S_INP(120))
+        self.reps = toga.NumberInput(step=1, value=5, style=S_INP(120))
 
         self.btn_bar = toga.Button(T["calc"][self.lang], on_press=self.calculate_bar, style=S_BTN())
         try:

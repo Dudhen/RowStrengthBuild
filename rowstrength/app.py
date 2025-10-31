@@ -1012,7 +1012,7 @@ class RowStrengthApp(toga.App):
         self.bw_lbl = toga.Label(T["bar_weight"][self.lang], style=S_LBL())
         self.bar_weight = toga.TextInput(value="100", style=S_INP(160), on_change=self._on_decimal_input_change)
         self.reps_lbl = toga.Label(T["reps"][self.lang], style=S_LBL())
-        self.reps = toga.TextInput(value="5", style=S_INP(120))  # оставляем как есть (требование касалось только веса)
+        self.reps = toga.NumberInput(step=1, value=5, style=S_INP(120))
 
         self.btn_bar = toga.Button(T["calc"][self.lang], on_press=self.calculate_bar, style=S_BTN())
         try:

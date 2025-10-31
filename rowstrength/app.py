@@ -316,13 +316,10 @@ class RowStrengthApp(toga.App):
 
     def _format_for_platform(self, value: float | int | Decimal, decimals: int | None = None) -> float | int:
         """
-        ВАЖНО: для NumberInput всегда возвращаем ЧИСЛО (float/int), а не строку.
-        Так мы избегаем Convert.ToDecimal(string) с неожиданной культурой на WinForms.
-        Если задан decimals — округляем до указанного числа знаков.
+        (Оставлено для совместимости; сейчас числовые поля — TextInput.)
         """
         if decimals is None:
             return float(value) if isinstance(value, (float, Decimal)) else int(value)
-        # строгое округление числом
         try:
             return float(round(float(value), decimals))
         except Exception:
@@ -330,32 +327,20 @@ class RowStrengthApp(toga.App):
             q = "0." + ("0" * (decimals - 1)) + "1" if decimals > 0 else "1"
             return float(d.quantize(Decimal(q), rounding=ROUND_HALF_UP))
 
-    def _set_num_value(self, widget: toga.NumberInput, value: float | int | Decimal, decimals: int | None = None):
+    def _set_num_value(self, widget, value: float | int | Decimal, decimals: int | None = None):
         """
-        Ставит значение в NumberInput так, чтобы WinForms не падал на Convert.ToDecimal.
-        - Windows: строка с локальным десятичным разделителем ("," в большинстве локалей ЕС/РФ)
-        - Другие платформы: число (float/int)
+        (Больше не используется для NumberInput; поля — TextInput.)
         """
         try:
-            if sys.platform.startswith("win"):
-                # Сформируем строку по локали
-                sep = self._decimal_sep() or ","
-                fv = float(value)
-                if decimals is None:
-                    s = str(int(round(fv)))
-                else:
-                    s = f"{fv:.{decimals}f}"
-                s = s.replace(".", sep)
-                widget.value = s  # WinForms ожидает строку, парсит её по текущей культуре
+            if decimals is None:
+                widget.value = str(int(round(float(value))))
             else:
-                # Нелокализованный путь для остальных
-                if decimals is None:
-                    widget.value = float(value) if isinstance(value, (float, Decimal)) else int(value)
-                else:
-                    widget.value = float(round(float(value), decimals))
+                widget.value = f"{float(value):.{decimals}f}"
         except Exception:
-            # Фоллбек на всякий случай
-            widget.value = float(value) if isinstance(value, (float, Decimal)) else int(value)
+            try:
+                widget.value = str(value)
+            except Exception:
+                pass
 
     def _to_float(self, v) -> float:
         if v is None:
@@ -367,6 +352,7 @@ class RowStrengthApp(toga.App):
             return 0.0
 
     def _step001(self):
+        # (Не используется: NumberInput заменены на TextInput)
         return 0.01
 
     # ===== Сервис: безопасная установка items с сохранением value =====
@@ -408,9 +394,11 @@ class RowStrengthApp(toga.App):
                 pass
 
         try:
+            # DecimalPad для полей с возможной дробной частью
             _set_kb(self.weight, 8)      # DecimalPad
             _set_kb(self.weight_b, 8)    # DecimalPad
             _set_kb(self.bar_weight, 8)  # DecimalPad
+            # Только числа для повторений
             _set_kb(self.reps, 4)        # NumberPad
         except Exception:
             pass
@@ -484,52 +472,6 @@ class RowStrengthApp(toga.App):
         except Exception:
             d = Decimal("0")
         return d.quantize(Decimal("0.00"), rounding=ROUND_HALF_UP)
-
-    # ---- Handlers NumberInput: визуальная нормализация значений ----
-    def _on_weight_change(self, widget):
-        if self._updating:
-            return
-        try:
-            val = widget.value
-            if val is None:
-                return
-            new_val = float(self._truncate_2_dec(val))
-            if str(val) != str(new_val):
-                self._updating = True
-                # Вес тела (Эргометр): обрезаем до 2 знаков
-                self._set_num_value(widget, new_val, decimals=None)
-        finally:
-            self._updating = False
-
-    def _on_weight_b_change(self, widget):
-        if self._updating:
-            return
-        try:
-            val = widget.value
-            if val is None:
-                return
-            new_val = float(self._truncate_2_dec(val))
-            if str(val) != str(new_val):
-                self._updating = True
-                # Вес тела (Штанга): обрезаем до 2 знаков
-                self._set_num_value(widget, new_val, decimals=None)
-        finally:
-            self._updating = False
-
-    def _on_bar_weight_change(self, widget):
-        if self._updating:
-            return
-        try:
-            val = widget.value
-            if val is None:
-                return
-            new_val = float(self._round_2_dec(val))
-            if str(val) != str(new_val):
-                self._updating = True
-                # «Вес штанги»: округляем до 2 знаков (числом)
-                self._set_num_value(widget, new_val, decimals=2)
-        finally:
-            self._updating = False
 
     # ---- Сплэш ----
     def startup(self):
@@ -958,17 +900,16 @@ class RowStrengthApp(toga.App):
         self.gender = toga.Selection(items=GENDER_LABELS[self.lang], value=GENDER_LABELS[self.lang][1],
                                      on_change=self._on_gender_change, style=S_INP(160))
         self.weight_lbl = toga.Label(T["weight"][self.lang], style=S_LBL())
-        self.weight = toga.NumberInput(step=self._step001(), value=80, style=S_INP(160))
-        self.weight.on_change = self._on_weight_change
+        # Начальные значения — без дробной части
+        self.weight = toga.TextInput(value="80", style=S_INP(160))
 
         self.distance_lbl = toga.Label(T["distance"][self.lang], style=S_LBL())
         self.distance = toga.Selection(items=[str(d) for d in DISTANCES], value="2000",
                                        on_change=self._on_distance_change, style=S_INP(160))
 
-        # UI: compact time row — один заголовок «Время (мин:сек.мс)» вместо трёх
+        # UI: compact time row
         self.time_lbl = toga.Label(T["time_compact"][self.lang], style=S_LBL())
 
-        # Селекты времени (узкие) + разделители ":" и "."  # UI: compact time row
         self.min_sel = toga.Selection(items=minutes_list, value=min_default,
                                       on_change=self._on_minute_change, style=S_INP_NARROW(51))
         self.sec_sel = toga.Selection(items=list(sec_items_for_min), value=sec_default,
@@ -1008,18 +949,16 @@ class RowStrengthApp(toga.App):
         self.gender_b = toga.Selection(items=GENDER_LABELS[self.lang], value=GENDER_LABELS[self.lang][1],
                                        style=S_INP(160))
         self.weight_b_lbl = toga.Label(T["weight"][self.lang], style=S_LBL())
-        self.weight_b = toga.NumberInput(step=self._step001(), value=80, style=S_INP(160))
-        self.weight_b.on_change = self._on_weight_b_change
+        self.weight_b = toga.TextInput(value="80", style=S_INP(160))
 
         self.ex_lbl = toga.Label(T["exercise"][self.lang], style=S_LBL())
         self.exercise = toga.Selection(items=list(EX_UI_TO_KEY[self.lang].keys()),
                                        value=list(EX_UI_TO_KEY[self.lang].keys())[0],
                                        style=S_INP(200))
         self.bw_lbl = toga.Label(T["bar_weight"][self.lang], style=S_LBL())
-        self.bar_weight = toga.NumberInput(step=self._step001(), value=100, style=S_INP(160))
-        self.bar_weight.on_change = self._on_bar_weight_change
+        self.bar_weight = toga.TextInput(value="100", style=S_INP(160))
         self.reps_lbl = toga.Label(T["reps"][self.lang], style=S_LBL())
-        self.reps = toga.NumberInput(step=1, value=5, style=S_INP(120))
+        self.reps = toga.TextInput(value="5", style=S_INP(120))
 
         self.btn_bar = toga.Button(T["calc"][self.lang], on_press=self.calculate_bar, style=S_BTN())
         try:
@@ -1399,7 +1338,8 @@ class RowStrengthApp(toga.App):
     def calculate_erg(self, widget):
         self._dismiss_ios_inputs()
         try:
-            bw_raw = self._to_float(self.weight.value or 0)
+            # читаем из TextInput.value (целые и дробные через точку/запятую)
+            bw_raw = self._to_float(self.weight.value)
             if not (40 <= bw_raw <= 140):
                 self._info(T["err_weight"][self.lang])
                 return
@@ -1448,7 +1388,11 @@ class RowStrengthApp(toga.App):
                     kilo = round((float(kilo) + float(vmap.get("1"))) / 2, 2)
                 rows2.append([ui_label, f"{kilo} kg"])
 
-            self.erg_results_holder.children.clear()
+            # очистка и рендер
+            try:
+                self.erg_results_holder.children.clear()
+            except Exception:
+                self._really_clear_holder_children(self.erg_results_holder)
 
             self.erg_tbl1_title_label = toga.Label(
                 T["erg_tbl1_title"][self.lang],
@@ -1458,15 +1402,16 @@ class RowStrengthApp(toga.App):
             self.erg_results_holder.add(make_table(rows1, col_flex=[1, 1, 1]))
 
             self.erg_tbl2_title_label = toga.Label(
-                T["erg_tbl2_title"][self.lang].format(w=int(self._to_float(self.weight.value or 0))),
+                T["erg_tbl2_title"][self.lang].format(
+                    w=int(self._to_float(self.weight.value))
+                ),
                 style=Pack(font_size=F_LABEL, color=CLR_ACCENT, padding_top=6, padding_bottom=2)
             )
             self.erg_results_holder.add(toga.Box(children=[self.erg_tbl2_title_label], style=S_ROW()))
             self.erg_results_holder.add(make_table(rows2, col_flex=[1, 1]))
 
-            # После расчёта на Эргометре подстрахуем готовность «Штанги»
             if IS_IOS:
-                self._bar_needs_first_fix = True  # на случай смены данных — реинициализируем при заходе
+                self._bar_needs_first_fix = True
 
         except Exception as e:
             self._info(str(e))
@@ -1474,24 +1419,24 @@ class RowStrengthApp(toga.App):
     def calculate_bar(self, widget):
         self._dismiss_ios_inputs()
         try:
-            bw_raw = self._to_float(self.weight_b.value or 0)
+            bw_raw = self._to_float(self.weight_b.value)
             if not (40 <= bw_raw <= 140):
                 self._info(T["err_weight"][self.lang])
                 return
             bw_floor = math.floor(bw_raw)
 
-            bar_w_raw = self._to_float(self.bar_weight.value or 0)
+            bar_w_raw = self._to_float(self.bar_weight.value)
             if not (1 <= bar_w_raw <= 700):
                 self._info(T["err_bar_weight"][self.lang])
                 return
             bar_w = float(self._round_2_dec(bar_w_raw))  # нормализация для формулы
 
-            reps = int(self.reps.value or 0)
-            if not (1 <= reps <= 30):
+            reps_val = int(self._to_float(self.reps.value))
+            if not (1 <= reps_val <= 30):
                 self._info(T["err_reps"][self.lang])
                 return
 
-            rep_max = round((bar_w / REPS_TABLE[reps]) * 100, 2)
+            rep_max = round((bar_w / REPS_TABLE[reps_val]) * 100, 2)
 
             g_key = GENDER_MAP[self.lang].get(self.gender_b.value, "male")
             strength_for_user = get_strength_data(g_key, bw_floor, self.strength_data_all)
@@ -1511,7 +1456,6 @@ class RowStrengthApp(toga.App):
                 self._info(T["err_1rm_map"][self.lang])
                 return
 
-            # По найденному проценту — эквиваленты в двух других упражнениях
             def _equiv_for(other_key: str):
                 other_tbl = strength_for_user.get(other_key, {})
                 equiv_val = None
@@ -1521,11 +1465,9 @@ class RowStrengthApp(toga.App):
                     else:
                         break
                 if equiv_val is None and other_tbl:
-                    # Фоллбек: минимальный процент (на всякий случай)
                     equiv_val = sorted(other_tbl.items(), key=lambda kv: float(kv[0]))[0][1]
                 return equiv_val
 
-            # Определяем порядок строк эквивалентов
             if ex_key == "bench-press":
                 first_other_key, second_other_key = "squat", "deadlift"
                 first_other_lbl = T["tbl_equiv_squat"][self.lang]
@@ -1542,7 +1484,7 @@ class RowStrengthApp(toga.App):
             first_equiv = _equiv_for(first_other_key)
             second_equiv = _equiv_for(second_other_key)
 
-            # Находим эквивалент 2км на эргометре по тому же проценту
+            # Эквивалент 2км по тому же проценту
             distance_data = get_distance_data(g_key, 2000, self.rowing_data)
             km2_res = None
             for k, v in distance_data.items():
@@ -1558,7 +1500,10 @@ class RowStrengthApp(toga.App):
                 [T["tbl_2k"][self.lang], km2_res],
             ]
 
-            self.bar_results_holder.children.clear()
+            try:
+                self.bar_results_holder.children.clear()
+            except Exception:
+                self._really_clear_holder_children(self.bar_results_holder)
 
             self.bar_tbl_title_label = toga.Label(
                 T["bar_tbl_title"][self.lang],

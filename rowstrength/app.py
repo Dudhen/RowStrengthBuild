@@ -955,7 +955,7 @@ class RowStrengthApp(toga.App):
                                      on_change=self._on_gender_change, style=S_INP(160))
         self.weight_lbl = toga.Label(T["weight"][self.lang], style=S_LBL())
         # Начальные значения — без дробной части
-        self.weight = toga.TextInput(value="80", style=S_INP(160), on_change=self._on_decimal_input_change)
+        self.weight = toga.TextInput(value="80.00", style=S_INP(160), on_change=self._on_decimal_input_change)
 
         self.distance_lbl = toga.Label(T["distance"][self.lang], style=S_LBL())
         self.distance = toga.Selection(items=[str(d) for d in DISTANCES], value="2000",
@@ -1003,7 +1003,7 @@ class RowStrengthApp(toga.App):
         self.gender_b = toga.Selection(items=GENDER_LABELS[self.lang], value=GENDER_LABELS[self.lang][1],
                                        style=S_INP(160))
         self.weight_b_lbl = toga.Label(T["weight"][self.lang], style=S_LBL())
-        self.weight_b = toga.TextInput(value="80", style=S_INP(160), on_change=self._on_decimal_input_change)
+        self.weight_b = toga.TextInput(value="80.00", style=S_INP(160), on_change=self._on_decimal_input_change)
 
         self.ex_lbl = toga.Label(T["exercise"][self.lang], style=S_LBL())
         self.exercise = toga.Selection(items=list(EX_UI_TO_KEY[self.lang].keys()),

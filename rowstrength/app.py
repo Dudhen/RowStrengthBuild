@@ -134,14 +134,14 @@ T = {
         "fr": "Équiv. (couché)",
         "es": "Equiv. (banca)",
         "ru": "Эквив. (жим)",
-     },
+    },
     "tbl_equiv_squat": {
         "en": "Equiv. (squat)",
         "de": "Äquiv. (Kniebeuge)",
         "fr": "Équiv. (squat)",
         "es": "Equiv. (sentadilla)",
         "ru": "Эквив. (присед)",
-     },
+    },
     "tbl_equiv_deadlift": {
         "en": "Equiv. (deadlift)",
         "de": "Äquiv. (Kreuzheben)",

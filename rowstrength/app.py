@@ -1078,7 +1078,7 @@ class RowStrengthApp(toga.App):
                 pass
         if self.erg_tbl2_title_label is not None:
             try:
-                w = int(self._to_float(self.weight.value or 0))
+                w = self._to_float(self.weight.value or 0)
             except Exception:
                 w = 0
             self.erg_tbl2_title_label.text = T["erg_tbl2_title"][self.lang].format(w=w)
@@ -1403,7 +1403,7 @@ class RowStrengthApp(toga.App):
 
             self.erg_tbl2_title_label = toga.Label(
                 T["erg_tbl2_title"][self.lang].format(
-                    w=int(self._to_float(self.weight.value))
+                    w=self._to_float(self.weight.value)
                 ),
                 style=Pack(font_size=F_LABEL, color=CLR_ACCENT, padding_top=6, padding_bottom=2)
             )

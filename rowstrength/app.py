@@ -101,11 +101,11 @@ T = {
         "ru": "  Результаты по дистанциям",
     },
     "erg_tbl2_title": {
-        "en": "  Barbell equivalents (bodyweight {w} kg)",
+        "en": "  Barbell equivalents\n  (bodyweight {w} kg)",
         "de": " " if False else "  Hantel-Äquivalente \n  (Körpergewicht {w} kg)",
-        "fr": "  Équivalents barre (poids du corps {w} kg)",
+        "fr": "  Équivalents barre\n  (poids du corps {w} kg)",
         "es": "  Equivalentes con barra \n  (peso corporal {w} kg)",
-        "ru": "  Эквивалент в штанге с весом {w} кг",
+        "ru": "  Эквивалент в штанге\n  (с весом {w} кг)",
     },
     # UI: обновлённый заголовок таблицы «Штанга» — эквиваленты + 2км
     "bar_tbl_title": {

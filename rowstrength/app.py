@@ -63,7 +63,7 @@ T = {
     # сплэш теперь в 2 строки и по центру
     "splash": {l: " Dev by Dudhen:\n@arseny.dudhen" for l in LANGS},
     "title": {l: "RowStrength by Dudhen" for l in LANGS},
-    "mode_erg": {"en": "Ergometer", "de": "Ergometer", "fr": "Ergomètre", "es": "Ergometrо", "ru": "Эргометр"},
+    "mode_erg": {"en": "Ergometer", "de": "Ergometer", "fr": "Ergomètre", "es": "Эrgometrо", "ru": "Эргометр"},
     "mode_bar": {"en": "Barbell", "de": "Langhantel", "fr": "Barre", "es": "Barra", "ru": "Штанга"},
     "language": {"en": "Language", "de": "Sprache", "fr": "Langue", "es": "Idioma", "ru": "Язык"},
     "gender": {"en": "   Gender", "de": "   Geschlecht", "fr": "   Sexe", "es": "   Sexo", "ru": "   Пол"},
@@ -302,6 +302,9 @@ class RowStrengthApp(toga.App):
         # Фикс «первого захода» на Штангу / после смены языка
         self._bar_needs_first_fix = True
 
+        # Флаг защиты от рекурсивных on_change при санитарной правке ввода
+        self._sanitizing_numeric_input = False
+
     # ===== Локаль и безопасные числовые операции для кросс-платформенности =====
     def _decimal_sep(self) -> str:
         try:
@@ -354,6 +357,51 @@ class RowStrengthApp(toga.App):
     def _step001(self):
         # (Не используется: NumberInput заменены на TextInput)
         return 0.01
+
+    # ===== Ограничение ввода для десятичных чисел (только цифры и один разделитель) =====
+    def _on_decimal_input_change(self, widget):
+        """
+        Разрешены только цифры и один десятичный разделитель ('.' или ',').
+        Пустое значение допускается во время набора.
+        Если строка начинается с разделителя — автоматически префиксуем '0'.
+        """
+        if self._sanitizing_numeric_input:
+            return
+        raw = widget.value or ""
+        s = str(raw)
+
+        # Быстрый выход: пусто — ок
+        if s == "":
+            return
+
+        # Мягкая санитарная фильтрация
+        sep_seen = False
+        sep_char = None
+        out_chars = []
+        for ch in s:
+            if ch.isdigit():
+                out_chars.append(ch)
+            elif ch in ".,":
+                if not sep_seen:
+                    sep_seen = True
+                    sep_char = ch
+                    out_chars.append(ch)
+                # дополнительные разделители игнорируем
+            # все остальные символы (буквы/пробелы/знаки) игнорируем
+
+        cleaned = "".join(out_chars)
+
+        # Если пользователь начал с разделителя — превратим в '0,' или '0.'
+        if cleaned.startswith(".") or cleaned.startswith(","):
+            cleaned = "0" + cleaned
+
+        # Если после чистки строка изменилась — обновим значение поля
+        if cleaned != s:
+            try:
+                self._sanitizing_numeric_input = True
+                widget.value = cleaned
+            finally:
+                self._sanitizing_numeric_input = False
 
     # ===== Сервис: безопасная установка items с сохранением value =====
     def _set_selection_items_preserve(self, selection: toga.Selection, items, desired_value):
@@ -901,7 +949,7 @@ class RowStrengthApp(toga.App):
                                      on_change=self._on_gender_change, style=S_INP(160))
         self.weight_lbl = toga.Label(T["weight"][self.lang], style=S_LBL())
         # Начальные значения — без дробной части
-        self.weight = toga.TextInput(value="80", style=S_INP(160))
+        self.weight = toga.TextInput(value="80", style=S_INP(160), on_change=self._on_decimal_input_change)
 
         self.distance_lbl = toga.Label(T["distance"][self.lang], style=S_LBL())
         self.distance = toga.Selection(items=[str(d) for d in DISTANCES], value="2000",
@@ -949,16 +997,16 @@ class RowStrengthApp(toga.App):
         self.gender_b = toga.Selection(items=GENDER_LABELS[self.lang], value=GENDER_LABELS[self.lang][1],
                                        style=S_INP(160))
         self.weight_b_lbl = toga.Label(T["weight"][self.lang], style=S_LBL())
-        self.weight_b = toga.TextInput(value="80", style=S_INP(160))
+        self.weight_b = toga.TextInput(value="80", style=S_INP(160), on_change=self._on_decimal_input_change)
 
         self.ex_lbl = toga.Label(T["exercise"][self.lang], style=S_LBL())
         self.exercise = toga.Selection(items=list(EX_UI_TO_KEY[self.lang].keys()),
                                        value=list(EX_UI_TO_KEY[self.lang].keys())[0],
                                        style=S_INP(200))
         self.bw_lbl = toga.Label(T["bar_weight"][self.lang], style=S_LBL())
-        self.bar_weight = toga.TextInput(value="100", style=S_INP(160))
+        self.bar_weight = toga.TextInput(value="100", style=S_INP(160), on_change=self._on_decimal_input_change)
         self.reps_lbl = toga.Label(T["reps"][self.lang], style=S_LBL())
-        self.reps = toga.TextInput(value="5", style=S_INP(120))
+        self.reps = toga.TextInput(value="5", style=S_INP(120))  # оставляем как есть (требование касалось только веса)
 
         self.btn_bar = toga.Button(T["calc"][self.lang], on_press=self.calculate_bar, style=S_BTN())
         try:

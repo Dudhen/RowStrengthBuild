@@ -904,7 +904,7 @@ class RowStrengthApp(toga.App):
                                      on_change=self._on_gender_change, style=S_INP(160))
         self.weight_lbl = toga.Label(T["weight"][self.lang], style=S_LBL())
         # Начальные значения — без дробной части
-        self.weight_b = toga.NumberInput(step=0.01, value=80, style=S_INP(160))
+        self.weight = toga.NumberInput(step=0.01, value=80, style=S_INP(160))
 
         self.distance_lbl = toga.Label(T["distance"][self.lang], style=S_LBL())
         self.distance = toga.Selection(items=[str(d) for d in DISTANCES], value="2000",

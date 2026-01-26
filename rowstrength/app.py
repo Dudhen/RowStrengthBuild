@@ -35,9 +35,13 @@ CLR_BTN_BG = "#D9CCFF"
 CLR_BTN_FG = "#2B1C7A"
 CLR_ACCENT = "#6A5ACD"
 
+# Требование: десятичные поля - 1 знак после запятой
+DECIMALS_BODY_WEIGHT = 1
+DECIMALS_BAR_WEIGHT = 1
+
 
 def S_MAIN():  return Pack(direction=COLUMN, padding=PAD_MAIN, flex=1)
-def S_ROW():   return Pack(direction=ROW, padding_bottom=6)  # ← оставляем как было (без flex)
+def S_ROW():   return Pack(direction=ROW, padding_bottom=6)  # оставляем как было (без flex)
 def S_COL():   return Pack(direction=COLUMN)
 def S_HEAD():  return Pack(font_size=F_HEAD, padding_bottom=6)
 def S_LBL():   return Pack(font_size=F_LABEL, padding_right=8, flex=1)
@@ -50,11 +54,12 @@ def S_INP(w=None, is_lang=None):
         return Pack(**kw)
     return Pack(font_size=F_INPUT, padding_right=10, width=INP_W)
 
-# UI: compact time row — узкие инпуты для селектов времени
+# UI: compact time row - узкие инпуты для селектов времени
 def S_INP_NARROW(w):
     return Pack(font_size=F_INPUT, padding_right=10, width=w)
 
 def S_BTN():   return Pack(padding_top=10, padding_bottom=10, padding_left=12, padding_right=12, flex=1)
+
 
 # -------- Локализация --------
 LANGS = ["en", "de", "fr", "es", "ru"]
@@ -77,7 +82,7 @@ T = {
     "minutes": {"en": "   Min", "de": "   Min", "fr": "   Min", "es": "   Min", "ru": "   Мин"},
     "seconds": {"en": "   Sec", "de": "   Sek", "fr": "   Sec", "es": "   Seg", "ru": "   Сек"},
     "centis": {"en": "   Tenths", "de": "   Zehntel", "fr": "   Dixièmes", "es": "   Décimas", "ru": "   Миллисекунды"},
-    # UI: compact time row — новый локализованный заголовок
+    # UI: compact time row - новый локализованный заголовок
     "time_compact": {
         "en": "   Time\n   (min:sec.ms)",
         "de": "   Zeit\n   (Min:Sek.ms)",
@@ -102,12 +107,12 @@ T = {
     },
     "erg_tbl2_title": {
         "en": "  Barbell equivalents\n  (bodyweight {w} kg)",
-        "de": " " if False else "  Hantel-Äquivalente \n  (Körpergewicht {w} kg)",
+        "de": "  Hantel-Äquivalente \n  (Körpergewicht {w} kg)",
         "fr": "  Équivalents barre\n  (poids du corps {w} kg)",
         "es": "  Equivalentes con barra \n  (peso corporal {w} kg)",
         "ru": "  Эквивалент в штанге\n  (с весом {w} кг)",
     },
-    # UI: обновлённый заголовок таблицы «Штанга» — эквиваленты + 2км
+    # UI: обновлённый заголовок таблицы «Штанга» - эквиваленты + 2км
     "bar_tbl_title": {
         "en": "  1RM and equivalents\n  (other lifts + 2k ergometer)",
         "de": "  1RM und Äquivalente\n  (andere Lifts + 2 km Ergo)",
@@ -142,7 +147,7 @@ T = {
     },
     # Упражнения
     "ex_bench": {"en": "Bench press", "de": "Bankdrücken", "fr": "Développé couché", "es": "Press banca", "ru": "Жим"},
-    "ex_squat": {"en": "Squat", "de": "Knieбеuge", "fr": "Squat", "es": "Sentadilla", "ru": "Присед"},
+    "ex_squat": {"en": "Squat", "de": "Kniebeuge", "fr": "Squat", "es": "Sentadilla", "ru": "Присед"},
     "ex_deadlift": {"en": "Deadlift", "de": "Kreuzheben", "fr": "Soulevé de terre", "es": "Peso muerto",
                     "ru": "Становая тяга"},
     # Ошибки
@@ -150,7 +155,7 @@ T = {
     "err_weight": {"en": "Body weight must be between 40 and 140 kg.",
                    "de": "Körpergewicht muss zwischen 40 und 140 kg liegen.",
                    "fr": "Le poids doit être entre 40 et 140 kg.",
-                   "es": "El peso corporal debe estar entre 40 et 140 кг.",
+                   "es": "El peso corporal debe estar entre 40 et 140 kg.",
                    "ru": "Упс: вес тела должен быть от 40 до 140"},
     "err_reps": {"en": "Supported reps: 1..30.",
                  "de": "Unterstützte Wiederholungen: 1..30.",
@@ -160,7 +165,7 @@ T = {
     "err_bar_weight": {"en": "Bar weight must be between 1 and 700 kg.",
                        "de": "Hantelgewicht muss zwischen 1 und 700 kg liegen.",
                        "fr": "La charge doit être entre 1 et 700 kg.",
-                       "es": "El peso en barra debe estar entre 1 et 700 кг.",
+                       "es": "El peso en barra debe estar entre 1 et 700 kg.",
                        "ru": "Вес штанги должен быть от 1 до 700"},
     "err_no_data": {"en": "No data for the selected distance/gender.",
                     "de": "Keine Daten für die gewählte Distanz/Geschlecht.",
@@ -180,6 +185,7 @@ T = {
                     "es": "No se puede estimar el porcentaje de 1RM.",
                     "ru": "Не удалось сопоставить процент к 1ПМ для этих данных."},
 }
+
 EX_UI_TO_KEY = {
     lang: {
         T["ex_bench"][lang]: "bench-press",
@@ -273,7 +279,7 @@ def _force_layout_ios(window):
 class RowStrengthApp(toga.App):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Язык по умолчанию — English
+        # Язык по умолчанию - English
         self.lang = "en"
         self._updating = False
         self._erg_init_done = False
@@ -319,7 +325,7 @@ class RowStrengthApp(toga.App):
 
     def _format_for_platform(self, value: float | int | Decimal, decimals: int | None = None) -> float | int:
         """
-        (Оставлено для совместимости; сейчас числовые поля — TextInput.)
+        (Оставлено для совместимости; числовые поля - TextInput.)
         """
         if decimals is None:
             return float(value) if isinstance(value, (float, Decimal)) else int(value)
@@ -330,21 +336,6 @@ class RowStrengthApp(toga.App):
             q = "0." + ("0" * (decimals - 1)) + "1" if decimals > 0 else "1"
             return float(d.quantize(Decimal(q), rounding=ROUND_HALF_UP))
 
-    def _set_num_value(self, widget, value: float | int | Decimal, decimals: int | None = None):
-        """
-        (Больше не используется для NumberInput; поля — TextInput.)
-        """
-        try:
-            if decimals is None:
-                widget.value = str(int(round(float(value))))
-            else:
-                widget.value = f"{float(value):.{decimals}f}"
-        except Exception:
-            try:
-                widget.value = str(value)
-            except Exception:
-                pass
-
     def _to_float(self, v) -> float:
         if v is None:
             return 0.0
@@ -353,10 +344,6 @@ class RowStrengthApp(toga.App):
             return float(s)
         except Exception:
             return 0.0
-
-    def _step001(self):
-        # (Не используется: NumberInput заменены на TextInput)
-        return 0.01
 
     # ===== Сервис: безопасная установка items с сохранением value =====
     def _set_selection_items_preserve(self, selection: toga.Selection, items, desired_value):
@@ -381,6 +368,89 @@ class RowStrengthApp(toga.App):
             except Exception:
                 pass
 
+    # ===== Ввод чисел: санитаризация (TextInput) =====
+    def _sanitize_decimal_text(self, s: str, max_int: int, max_frac: int) -> str:
+        """
+        Разрешаем: цифры и один разделитель (.,), приводим к точке.
+        Обрезаем: целую часть до max_int, дробную до max_frac.
+        """
+        if s is None:
+            return ""
+        s = str(s).strip().replace(",", ".")
+        out = []
+        seen_dot = False
+
+        for ch in s:
+            if ch.isdigit():
+                out.append(ch)
+                continue
+            if ch == "." and not seen_dot and max_frac > 0:
+                out.append(".")
+                seen_dot = True
+
+        cleaned = "".join(out)
+
+        if "." in cleaned:
+            ip, fp = cleaned.split(".", 1)
+            ip = ip[:max_int]
+            fp = fp[:max_frac]
+            cleaned = ip + "." + fp
+        else:
+            cleaned = cleaned[:max_int]
+
+        return cleaned
+
+    def _sanitize_int_text(self, s: str, max_len: int) -> str:
+        if s is None:
+            return ""
+        s = str(s).strip()
+        digits = "".join(ch for ch in s if ch.isdigit())
+        return digits[:max_len]
+
+    def _on_weight_change(self, widget):
+        if self._sanitizing_numeric_input:
+            return
+        self._sanitizing_numeric_input = True
+        try:
+            new_val = self._sanitize_decimal_text(widget.value, max_int=3, max_frac=DECIMALS_BODY_WEIGHT)
+            if widget.value != new_val:
+                widget.value = new_val
+        finally:
+            self._sanitizing_numeric_input = False
+
+    def _on_weight_b_change(self, widget):
+        if self._sanitizing_numeric_input:
+            return
+        self._sanitizing_numeric_input = True
+        try:
+            new_val = self._sanitize_decimal_text(widget.value, max_int=3, max_frac=DECIMALS_BODY_WEIGHT)
+            if widget.value != new_val:
+                widget.value = new_val
+        finally:
+            self._sanitizing_numeric_input = False
+
+    def _on_bar_weight_change(self, widget):
+        if self._sanitizing_numeric_input:
+            return
+        self._sanitizing_numeric_input = True
+        try:
+            new_val = self._sanitize_decimal_text(widget.value, max_int=3, max_frac=DECIMALS_BAR_WEIGHT)
+            if widget.value != new_val:
+                widget.value = new_val
+        finally:
+            self._sanitizing_numeric_input = False
+
+    def _on_reps_change(self, widget):
+        if self._sanitizing_numeric_input:
+            return
+        self._sanitizing_numeric_input = True
+        try:
+            new_val = self._sanitize_int_text(widget.value, max_len=2)
+            if widget.value != new_val:
+                widget.value = new_val
+        finally:
+            self._sanitizing_numeric_input = False
+
     # ========== iOS: принудительно задаём типы цифровой клавиатуры ==========
     def _apply_ios_keyboard_types(self):
         if not IS_IOS:
@@ -392,17 +462,29 @@ class RowStrengthApp(toga.App):
                 if native is None:
                     return
                 native.keyboardType = kb_code
+
+                # отключаем автозамены/умные вставки
+                native.autocorrectionType = 1  # UITextAutocorrectionTypeNo
+                native.spellCheckingType = 1   # UITextSpellCheckingTypeNo
+                try:
+                    native.smartDashesType = 1
+                    native.smartQuotesType = 1
+                    native.smartInsertDeleteType = 1
+                except Exception:
+                    pass
+
                 native.reloadInputViews()
             except Exception:
                 pass
 
         try:
-            # DecimalPad для полей с возможной дробной частью
-            _set_kb(self.weight, 8)      # DecimalPad
-            _set_kb(self.weight_b, 8)    # DecimalPad
-            _set_kb(self.bar_weight, 8)  # DecimalPad
+            # DecimalPad: цифры + десятичный разделитель
+            _set_kb(self.weight, 8)      # UIKeyboardTypeDecimalPad
+            _set_kb(self.weight_b, 8)    # UIKeyboardTypeDecimalPad
+            _set_kb(self.bar_weight, 8)  # UIKeyboardTypeDecimalPad
+
             # Только числа для повторений
-            _set_kb(self.reps, 4)        # NumberPad
+            _set_kb(self.reps, 4)        # UIKeyboardTypeNumberPad
         except Exception:
             pass
 
@@ -670,7 +752,6 @@ class RowStrengthApp(toga.App):
             initial = None
 
         switched = False
-        # Пытаемся через current_tab разными способами
         try:
             self.tabs.current_tab = self.bar_page
             switched = True
@@ -680,16 +761,13 @@ class RowStrengthApp(toga.App):
                 switched = True
             except Exception:
                 try:
-                    # Попробуем через OptionItem
                     items = list(self.tabs.content)
                     bar_item = None
                     erg_item = None
                     for it in items:
-                        if getattr(it, "content", None) is self.bar_page or getattr(it, "content",
-                                                                                    None) is self.bar_col:
+                        if getattr(it, "content", None) is self.bar_page or getattr(it, "content", None) is self.bar_col:
                             bar_item = it
-                        if getattr(it, "content", None) is self.erg_page or getattr(it, "content",
-                                                                                    None) is self.erg_col:
+                        if getattr(it, "content", None) is self.erg_page or getattr(it, "content", None) is self.erg_col:
                             erg_item = it
                     if bar_item is not None:
                         self.tabs.current_tab = bar_item
@@ -700,7 +778,6 @@ class RowStrengthApp(toga.App):
         _force_layout_ios(self.main_window)
         self._nudge_scrollcontainers()
 
-        # Возврат на исходный таб
         if switched:
             try:
                 if initial is not None:
@@ -708,7 +785,6 @@ class RowStrengthApp(toga.App):
             except Exception:
                 pass
         else:
-            # Фоллбек: временно меняем порядок content и возвращаем
             try:
                 self.tabs.content = [(T["mode_bar"][self.lang], self.bar_page),
                                      (T["mode_erg"][self.lang], self.erg_page)]
@@ -735,7 +811,6 @@ class RowStrengthApp(toga.App):
         try:
             temp_title = toga.Label(" ")
             temp_tbl = make_table([[""]])
-            # Временно наполняем holder
             self.bar_results_holder.add(toga.Box(children=[temp_title], style=S_ROW()))
             self.bar_results_holder.add(temp_tbl)
         except Exception:
@@ -751,7 +826,6 @@ class RowStrengthApp(toga.App):
             pass
         _force_layout_ios(self.main_window)
 
-        # Удаляем временный контент без следов
         try:
             self._really_clear_holder_children(self.bar_results_holder)
         except Exception:
@@ -766,27 +840,23 @@ class RowStrengthApp(toga.App):
     def _ensure_bar_ready_once(self):
         if not IS_IOS:
             return
-        # Выполняем только при первом заходе или после смены языка
         if not self._bar_needs_first_fix:
             return
         self._bar_needs_first_fix = False
 
-        # Последовательность: пересоздать скролл → нуджи → убрать возможные блюры
         self._ios_recreate_bar_page()
         self._ios_strong_nudge_scrollcontainer(self.bar_page)
         self._nudge_scrollcontainers()
         self._ios_strip_global_blurs()
 
-        # FIX(iOS layout): тёплый выбор вкладки и фальш-пересчёт (пока вкладка скрыта)
         self._ios_warm_select_bar()
         self._ios_fake_recalc_bar()
 
-        # И ещё пара проходов с маленькой задержкой — чтобы поймать поздние перерисовки
         loop = asyncio.get_event_loop()
         loop.call_later(0.02, lambda: (self._ios_strong_nudge_scrollcontainer(self.bar_page),
                                        self._nudge_scrollcontainers()))
-        loop.call_later(0.03, lambda: (self._ios_warm_select_bar(),))  # FIX(iOS layout): повтор warm-select
-        loop.call_later(0.06, lambda: (self._ios_fake_recalc_bar(),))  # FIX(iOS layout): повтор fake-recalc
+        loop.call_later(0.03, lambda: (self._ios_warm_select_bar(),))
+        loop.call_later(0.06, lambda: (self._ios_fake_recalc_bar(),))
         loop.call_later(0.08, lambda: (self._ios_strip_global_blurs(),
                                        self._ios_strong_nudge_scrollcontainer(self.bar_page)))
         loop.call_later(0.1, lambda: (_force_layout_ios(self.main_window),))
@@ -900,11 +970,16 @@ class RowStrengthApp(toga.App):
 
         # ===== Вкладка Эргометр =====
         self.gender_lbl = toga.Label(T["gender"][self.lang], style=S_LBL())
-        self.gender = toga.Selection(items=GENDER_LABELS[self.lang], value=GENDER_LABELS[self.lang][1],
-                                     on_change=self._on_gender_change, style=S_INP(160))
+        self.gender = toga.Selection(
+            items=GENDER_LABELS[self.lang],
+            value=GENDER_LABELS[self.lang][1],
+            on_change=self._on_gender_change,
+            style=S_INP(160)
+        )
+
         self.weight_lbl = toga.Label(T["weight"][self.lang], style=S_LBL())
-        # Начальные значения — без дробной части
-        self.weight = toga.NumberInput(step=0.01, value=80, style=S_INP(160))
+        # Десятичное поле (1 знак) - TextInput + санитаризация
+        self.weight = toga.TextInput(value="80.0", on_change=self._on_weight_change, style=S_INP(160))
 
         self.distance_lbl = toga.Label(T["distance"][self.lang], style=S_LBL())
         self.distance = toga.Selection(items=[str(d) for d in DISTANCES], value="2000",
@@ -951,17 +1026,23 @@ class RowStrengthApp(toga.App):
         self.gender_b_lbl = toga.Label(T["gender"][self.lang], style=S_LBL())
         self.gender_b = toga.Selection(items=GENDER_LABELS[self.lang], value=GENDER_LABELS[self.lang][1],
                                        style=S_INP(160))
+
         self.weight_b_lbl = toga.Label(T["weight"][self.lang], style=S_LBL())
-        self.weight_b = toga.NumberInput(step=0.01, value=80, style=S_INP(160))
+        # Десятичное поле (1 знак) - TextInput + санитаризация
+        self.weight_b = toga.TextInput(value="80.0", on_change=self._on_weight_b_change, style=S_INP(160))
 
         self.ex_lbl = toga.Label(T["exercise"][self.lang], style=S_LBL())
         self.exercise = toga.Selection(items=list(EX_UI_TO_KEY[self.lang].keys()),
                                        value=list(EX_UI_TO_KEY[self.lang].keys())[0],
                                        style=S_INP(200))
+
         self.bw_lbl = toga.Label(T["bar_weight"][self.lang], style=S_LBL())
-        self.bar_weight = toga.NumberInput(step=0.5, value=100, style=S_INP(160))
+        # Десятичное поле (1 знак) - TextInput + санитаризация
+        self.bar_weight = toga.TextInput(value="100.0", on_change=self._on_bar_weight_change, style=S_INP(160))
+
         self.reps_lbl = toga.Label(T["reps"][self.lang], style=S_LBL())
-        self.reps = toga.NumberInput(step=1, value=5, style=S_INP(120))
+        # Целое поле - TextInput + санитаризация
+        self.reps = toga.TextInput(value="5", on_change=self._on_reps_change, style=S_INP(120))
 
         self.btn_bar = toga.Button(T["calc"][self.lang], on_press=self.calculate_bar, style=S_BTN())
         try:
@@ -1009,7 +1090,6 @@ class RowStrengthApp(toga.App):
         root.add(spacer)
         root.add(self.tabs)
 
-        # Показ полностью готового дерева
         self.main_window.content = root
 
         # Невидимый «мягкий нудж»
@@ -1053,7 +1133,6 @@ class RowStrengthApp(toga.App):
     def _on_tab_select(self, widget, option=None):
         self._dismiss_ios_inputs()
 
-        # Определяем, что выбран именно экран «Штанга»
         is_bar = False
         try:
             if option is self.bar_page or option is self.bar_col:
@@ -1066,10 +1145,10 @@ class RowStrengthApp(toga.App):
             pass
 
         if IS_IOS and is_bar:
-            # Один раз выполняем инициализацию лэйаута и убираем возможные блюры
             self._ensure_bar_ready_once()
 
         self._nudge_scrollcontainers()
+        self._apply_ios_keyboard_types()
 
     # ---- Обновление существующих заголовков (без пересчёта) ----
     def _update_existing_titles(self):
@@ -1106,7 +1185,6 @@ class RowStrengthApp(toga.App):
         try:
             self._dismiss_ios_inputs()
 
-            # Сохраняем состояние (языконезависимо)
             old_lang = self.lang
             old_gender_key = GENDER_MAP[old_lang].get(self.gender.value, "male")
             old_gender_b_key = GENDER_MAP[old_lang].get(self.gender_b.value, "male")
@@ -1115,20 +1193,16 @@ class RowStrengthApp(toga.App):
             old_cen = self._cen_value
             old_ex_key = EX_UI_TO_KEY.get(old_lang, {}).get(self.exercise.value, None)
 
-            # Новый язык
             inv = {v: k for k, v in LANG_LABEL.items()}
             self.lang = inv.get(self.lang_sel.value, "en")
 
-            # Подставляем тексты
             self._apply_language_texts()
 
-            # Восстанавливаем гендеры на обеих вкладках
             self.gender.items = GENDER_LABELS[self.lang]
             self.gender.value = GENDER_LABELS[self.lang][0 if old_gender_key == "female" else 1]
             self.gender_b.items = GENDER_LABELS[self.lang]
             self.gender_b.value = GENDER_LABELS[self.lang][0 if old_gender_b_key == "female" else 1]
 
-            # Восстанавливаем упражнение
             self.exercise.items = list(EX_UI_TO_KEY[self.lang].keys())
             if old_ex_key is not None:
                 new_ex_label = EX_KEY_TO_LABEL[self.lang].get(old_ex_key)
@@ -1138,7 +1212,6 @@ class RowStrengthApp(toga.App):
                 elif self.exercise.items:
                     self.exercise.value = list(self.exercise.items)[0].value
 
-            # Восстанавливаем время
             self._min_value = old_min
             self._sec_value = old_sec
             self._cen_value = old_cen
@@ -1154,17 +1227,13 @@ class RowStrengthApp(toga.App):
             except Exception:
                 pass
 
-            # Чистим результаты и слегка «пинаем» лэйаут
             self._clear_all_results()
             self._nudge_scrollcontainers()
 
-            # После смены языка следующий заход на «Штангу» снова требует первичного фикс-прохода
             self._bar_needs_first_fix = True
             if IS_IOS:
-                # На всякий случай подчистим возможные блюры уже сейчас
                 self._ios_strip_global_blurs()
 
-            # Второй проход (отложенно): синхронизация визуала на Эргометре
             def _second_pass():
                 self._clear_all_results()
                 self._update_existing_titles()
@@ -1174,7 +1243,6 @@ class RowStrengthApp(toga.App):
 
             asyncio.get_event_loop().call_later(0.015, _second_pass)
 
-            # Финальный рефреш
             self._deep_refresh(self.main_window.content)
             _force_layout_ios(self.main_window)
             self._apply_ios_keyboard_types()
@@ -1211,12 +1279,6 @@ class RowStrengthApp(toga.App):
             items_tabs[1].text = T["mode_bar"][self.lang]
         except Exception:
             pass
-
-    def _set_exercise_items(self):
-        current = self.exercise.value
-        items = list(EX_UI_TO_KEY[self.lang].keys())
-        self.exercise.items = items
-        self.exercise.value = current if current in items else (items[0] if items else None)
 
     def _on_gender_change(self, widget):
         if self._updating:
@@ -1259,7 +1321,6 @@ class RowStrengthApp(toga.App):
     def _on_minute_change(self, widget):
         if self._updating:
             return
-        # Перестроим список секунд для выбранной минуты, С ОХРАНОЙ текущего значения
         g_key = GENDER_MAP[self.lang].get(self.gender.value, "male")
         dist = int(self.distance.value)
         dist_data = get_distance_data(g_key, dist, self.rowing_data)
@@ -1270,13 +1331,11 @@ class RowStrengthApp(toga.App):
 
         old_sec = self._sec_value
         self._set_selection_items_preserve(self.sec_sel, seconds, old_sec)
-        # Зафиксируем фактическое значение (вдруг Toga поправила его)
         try:
             self._sec_value = self.sec_sel.value
         except Exception:
             pass
 
-        # iOS: синхронизируем визуально
         self._ios_sync_selection_display(self.sec_sel)
 
     def _on_second_change(self, widget):
@@ -1325,12 +1384,10 @@ class RowStrengthApp(toga.App):
         seconds = sec_map.get(default_min, ["00"])
 
         if force_second_minute and not preserve_sec:
-            # Жёсткий режим: выбрать дефолт и зафиксировать
             default_sec = seconds[0]
             self._set_selection_items_preserve(self.sec_sel, seconds, default_sec)
             self._sec_value = default_sec
         else:
-            # Сохранить текущее значение секунд
             self._set_selection_items_preserve(self.sec_sel, seconds, self._sec_value)
             try:
                 self._sec_value = self.sec_sel.value
@@ -1341,7 +1398,6 @@ class RowStrengthApp(toga.App):
     def calculate_erg(self, widget):
         self._dismiss_ios_inputs()
         try:
-            # читаем из TextInput.value (целые и дробные через точку/запятую)
             bw_raw = self._to_float(self.weight.value)
             if not (40 <= bw_raw <= 140):
                 self._info(T["err_weight"][self.lang])
@@ -1391,7 +1447,6 @@ class RowStrengthApp(toga.App):
                     kilo = round((float(kilo) + float(vmap.get("1"))) / 2, 2)
                 rows2.append([ui_label, f"{kilo} kg"])
 
-            # очистка и рендер
             try:
                 self.erg_results_holder.children.clear()
             except Exception:
@@ -1405,9 +1460,7 @@ class RowStrengthApp(toga.App):
             self.erg_results_holder.add(make_table(rows1, col_flex=[1, 1, 1]))
 
             self.erg_tbl2_title_label = toga.Label(
-                T["erg_tbl2_title"][self.lang].format(
-                    w=self._to_float(self.weight.value)
-                ),
+                T["erg_tbl2_title"][self.lang].format(w=self._to_float(self.weight.value)),
                 style=Pack(font_size=F_LABEL, color=CLR_ACCENT, padding_top=6, padding_bottom=2)
             )
             self.erg_results_holder.add(toga.Box(children=[self.erg_tbl2_title_label], style=S_ROW()))
@@ -1432,7 +1485,9 @@ class RowStrengthApp(toga.App):
             if not (1 <= bar_w_raw <= 700):
                 self._info(T["err_bar_weight"][self.lang])
                 return
-            bar_w = float(self._round_2_dec(bar_w_raw))  # нормализация для формулы
+
+            # нормализация под 1 знак (требование) - это косметика, но оставим чисто для стабильности
+            bar_w = float(Decimal(str(bar_w_raw)).quantize(Decimal("0.0"), rounding=ROUND_HALF_UP))
 
             reps_val = int(self._to_float(self.reps.value))
             if not (1 <= reps_val <= 30):

@@ -36,8 +36,8 @@ CLR_BTN_BG = "#D9CCFF"
 CLR_BTN_FG = "#2B1C7A"
 CLR_ACCENT = "#6A5ACD"
 
-# Требование: десятичные поля - 1 знак после запятой
-DECIMALS_BODY_WEIGHT = 1
+# Требование: десятичные поля - 2 знака после запятой
+DECIMALS_BODY_WEIGHT = 2
 DECIMALS_BAR_WEIGHT = 2
 
 

@@ -38,7 +38,7 @@ CLR_ACCENT = "#6A5ACD"
 
 # Требование: десятичные поля - 1 знак после запятой
 DECIMALS_BODY_WEIGHT = 1
-DECIMALS_BAR_WEIGHT = 1
+DECIMALS_BAR_WEIGHT = 2
 
 
 def S_MAIN():  return Pack(direction=COLUMN, padding=PAD_MAIN, flex=1)

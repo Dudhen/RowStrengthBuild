@@ -6,6 +6,7 @@ import math
 import locale
 from importlib import resources
 from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP
+from typing import Optional, Union
 
 import toga
 from toga.style import Pack
@@ -323,7 +324,7 @@ class RowStrengthApp(toga.App):
         except Exception:
             return "."
 
-    def _format_for_platform(self, value: float | int | Decimal, decimals: int | None = None) -> float | int:
+    def _format_for_platform(self, value: Union[float, int, Decimal], decimals: Optional[int] = None) -> Union[float, int]:
         """
         (Оставлено для совместимости; числовые поля - TextInput.)
         """
@@ -489,7 +490,7 @@ class RowStrengthApp(toga.App):
             pass
 
     # ========== iOS: синхронизация отображаемого текста Selection ==========
-    def _ios_sync_selection_display(self, selection_widget: toga.Selection, index: int | None = None):
+    def _ios_sync_selection_display(self, selection_widget: toga.Selection, index: Optional[int] = None):
         if sys.platform != "ios":
             return
         try:
@@ -645,7 +646,7 @@ class RowStrengthApp(toga.App):
             pass
 
     # ---- «сильный» нудж конкретного ScrollContainer (iOS) ----
-    def _ios_strong_nudge_scrollcontainer(self, sc: toga.ScrollContainer | None):
+    def _ios_strong_nudge_scrollcontainer(self, sc: Optional[toga.ScrollContainer]):
         if sys.platform != "ios" or sc is None:
             return
         try:
@@ -862,7 +863,7 @@ class RowStrengthApp(toga.App):
         loop.call_later(0.1, lambda: (_force_layout_ios(self.main_window),))
 
     # ---- надёжная очистка контейнера результатов ----
-    def _really_clear_holder_children(self, holder: toga.Box | None):
+    def _really_clear_holder_children(self, holder: Optional[toga.Box]):
         if holder is None:
             return
         try:

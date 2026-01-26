@@ -1089,7 +1089,12 @@ class RowStrengthApp(toga.App):
 
         self.bw_lbl = toga.Label(T["bar_weight"][self.lang], style=S_LBL())
         # Десятичное поле (1 знак) - TextInput + санитаризация
-        self.bar_weight = toga.NumberInput(step=0.5, value=100, style=S_INP(160))
+        self.bar_weight = toga.TextInput(
+            value="100.0",
+            on_change=self._on_bar_weight_change,
+            on_gain_focus=self._on_decimal_focus,
+            style=S_INP(160),
+        )
 
         self.reps_lbl = toga.Label(T["reps"][self.lang], style=S_LBL())
         # Целое поле - TextInput + санитаризация

@@ -452,6 +452,46 @@ class RowStrengthApp(toga.App):
         finally:
             self._sanitizing_numeric_input = False
 
+    def _on_decimal_focus(self, widget):
+        if not IS_IOS:
+            return
+        try:
+            native = widget._impl.native  # UITextField
+            if native is None:
+                return
+            native.keyboardType = 8  # UIKeyboardTypeDecimalPad
+            native.autocorrectionType = 1
+            native.spellCheckingType = 1
+            try:
+                native.smartDashesType = 1
+                native.smartQuotesType = 1
+                native.smartInsertDeleteType = 1
+            except Exception:
+                pass
+            native.reloadInputViews()
+        except Exception:
+            pass
+
+    def _on_int_focus(self, widget):
+        if not IS_IOS:
+            return
+        try:
+            native = widget._impl.native  # UITextField
+            if native is None:
+                return
+            native.keyboardType = 4  # UIKeyboardTypeNumberPad
+            native.autocorrectionType = 1
+            native.spellCheckingType = 1
+            try:
+                native.smartDashesType = 1
+                native.smartQuotesType = 1
+                native.smartInsertDeleteType = 1
+            except Exception:
+                pass
+            native.reloadInputViews()
+        except Exception:
+            pass
+
     # ========== iOS: принудительно задаём типы цифровой клавиатуры ==========
     def _apply_ios_keyboard_types(self):
         if not IS_IOS:
@@ -980,7 +1020,12 @@ class RowStrengthApp(toga.App):
 
         self.weight_lbl = toga.Label(T["weight"][self.lang], style=S_LBL())
         # Десятичное поле (1 знак) - TextInput + санитаризация
-        self.weight = toga.TextInput(value="80.0", on_change=self._on_weight_change, style=S_INP(160))
+        self.weight = toga.TextInput(
+            value="80.0",
+            on_change=self._on_weight_change,
+            on_gain_focus=self._on_decimal_focus,
+            style=S_INP(160),
+        )
 
         self.distance_lbl = toga.Label(T["distance"][self.lang], style=S_LBL())
         self.distance = toga.Selection(items=[str(d) for d in DISTANCES], value="2000",
@@ -1030,7 +1075,12 @@ class RowStrengthApp(toga.App):
 
         self.weight_b_lbl = toga.Label(T["weight"][self.lang], style=S_LBL())
         # Десятичное поле (1 знак) - TextInput + санитаризация
-        self.weight_b = toga.TextInput(value="80.0", on_change=self._on_weight_b_change, style=S_INP(160))
+        self.weight_b = toga.TextInput(
+            value="80.0",
+            on_change=self._on_weight_b_change,
+            on_gain_focus=self._on_decimal_focus,
+            style=S_INP(160),
+        )
 
         self.ex_lbl = toga.Label(T["exercise"][self.lang], style=S_LBL())
         self.exercise = toga.Selection(items=list(EX_UI_TO_KEY[self.lang].keys()),
@@ -1039,11 +1089,21 @@ class RowStrengthApp(toga.App):
 
         self.bw_lbl = toga.Label(T["bar_weight"][self.lang], style=S_LBL())
         # Десятичное поле (1 знак) - TextInput + санитаризация
-        self.bar_weight = toga.TextInput(value="100.0", on_change=self._on_bar_weight_change, style=S_INP(160))
+        self.bar_weight = toga.TextInput(
+            value="100.0",
+            on_change=self._on_bar_weight_change,
+            on_gain_focus=self._on_decimal_focus,
+            style=S_INP(160),
+        )
 
         self.reps_lbl = toga.Label(T["reps"][self.lang], style=S_LBL())
         # Целое поле - TextInput + санитаризация
-        self.reps = toga.TextInput(value="5", on_change=self._on_reps_change, style=S_INP(120))
+        self.reps = toga.TextInput(
+            value="5",
+            on_change=self._on_reps_change,
+            on_gain_focus=self._on_int_focus,
+            style=S_INP(120),
+        )
 
         self.btn_bar = toga.Button(T["calc"][self.lang], on_press=self.calculate_bar, style=S_BTN())
         try:

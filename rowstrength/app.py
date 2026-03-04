@@ -77,7 +77,7 @@ T = {
     "male": {"en": "Male", "de": "Мännlich", "fr": "Homme", "es": "Hombre", "ru": "Муж"},
     "weight": {"en": "   Body weight (kg)", "de": "   Körpergewicht (kg)", "fr": "   Poids (kg)",
                "es": "   Peso corporal (kg)",
-               "ru": "   Вес (кг)"},
+               "ru": "   Вес тела (кг)"},
     "distance": {"en": "   Distance", "de": "   Distanz", "fr": "   Distance", "es": "   Distancia",
                  "ru": "   Дистанция"},
     "minutes": {"en": "   Min", "de": "   Min", "fr": "   Min", "es": "   Min", "ru": "   Мин"},
@@ -119,11 +119,17 @@ T = {
         "de": "  1RM und Äquivalente\n  (andere Lifts + 2 km Ergo)",
         "fr": "  1 RM et équivalents\n  (autres exercices + ergo 2 km)",
         "es": "  1RM y equivalentes\n  (otros ejercicios + ergo 2 km)",
-        "ru": "  1ПМ и эквиваленты\n  (другие упражнения + эргометр 2км)",
+        "ru": "  1ПМ и эквиваленты\n  (др. упражнения + эргометр 2км)",
     },
     # Табличные подписи
     "tbl_1rm": {"en": "1 rep max", "de": "1RM", "fr": "1 RM", "es": "1RM", "ru": "Разовый макс."},
-    "tbl_2k": {"en": "2k ergometer", "de": "2 km Ergo", "fr": "Ergo 2 km", "es": "Ergo 2 km", "ru": "2км эргометр"},
+    "tbl_2k": {
+        "en": "Equiv. 2k ergometer",
+        "de": "Äquiv. 2 km ergo",
+        "fr": "Équiv. ergo 2 km",
+        "es": "Equiv. ergo 2 km",
+        "ru": "Эквив. 2км эрго"
+    },
     # Новые строки эквивалентов для «Штанги» (компактные подписи)
     "tbl_equiv_bench": {
         "en": "Equiv. (bench)",

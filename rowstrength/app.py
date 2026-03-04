@@ -1098,12 +1098,7 @@ class RowStrengthApp(toga.App):
 
         self.reps_lbl = toga.Label(T["reps"][self.lang], style=S_LBL())
         # Целое поле - TextInput + санитаризация
-        self.reps = toga.TextInput(
-            value="5",
-            on_change=self._on_reps_change,
-            on_gain_focus=self._on_int_focus,
-            style=S_INP(120),
-        )
+        self.reps = toga.NumberInput(step=1, value=5, style=S_INP(120))
 
         self.btn_bar = toga.Button(T["calc"][self.lang], on_press=self.calculate_bar, style=S_BTN())
         try:

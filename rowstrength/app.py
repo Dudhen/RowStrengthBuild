@@ -51,13 +51,13 @@ def S_INP(w=None, is_lang=None):
     if is_lang:
         kw = dict(font_size=F_INPUT, padding_right=10)
         if w is not None:
-            kw["width"] = w
+            kw["width"] = w * 0.9  # Уменьшаем ширину на 10%
         return Pack(**kw)
-    return Pack(font_size=F_INPUT, padding_right=10, width=INP_W)
+    return Pack(font_size=F_INPUT, padding_right=10, width=INP_W * 0.9)  # Уменьшаем ширину на 10%
 
 # UI: compact time row - узкие инпуты для селектов времени
 def S_INP_NARROW(w):
-    return Pack(font_size=F_INPUT, padding_right=10, width=w)
+    return Pack(font_size=F_INPUT, padding_right=10, width=w * 0.9)  # Уменьшаем ширину на 10%
 
 def S_BTN():   return Pack(padding_top=10, padding_bottom=10, padding_left=12, padding_right=12, flex=1)
 

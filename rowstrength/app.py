@@ -1041,11 +1041,11 @@ class RowStrengthApp(toga.App):
         self.time_lbl = toga.Label(T["time_compact"][self.lang], style=S_LBL())
 
         self.min_sel = toga.Selection(items=minutes_list, value=min_default,
-                                      on_change=self._on_minute_change, style=S_INP_NARROW(50))
+                                      on_change=self._on_minute_change, style=S_INP_NARROW(49))
         self.sec_sel = toga.Selection(items=list(sec_items_for_min), value=sec_default,
-                                      on_change=self._on_second_change, style=S_INP_NARROW(50))
+                                      on_change=self._on_second_change, style=S_INP_NARROW(49))
         self.cen_sel = toga.Selection(items=[str(i) for i in range(10)], value="0",
-                                      on_change=self._on_centi_change, style=S_INP_NARROW(50))
+                                      on_change=self._on_centi_change, style=S_INP_NARROW(49))
         sep_style = Pack(padding_left=4, padding_right=4, font_size=F_INPUT)
         time_inputs = toga.Box(style=Pack(direction=ROW))
         time_inputs.add(self.min_sel)
